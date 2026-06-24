@@ -21,6 +21,10 @@ export async function GET(req: NextRequest) {
     const siege = result.siege ?? {};
     const dirigeants = result.dirigeants ?? [];
     const asso = result.association ?? {};
+    const complements = result.complements ?? {};
+    console.log("[sirene] complements:", JSON.stringify(complements));
+    console.log("[sirene] asso:", JSON.stringify(asso));
+    console.log("[sirene] sigle:", result.sigle);
     const representant = dirigeants.find((d: { qualite?: string }) =>
       ["Président", "Directeur", "Gérant"].some((q) => d.qualite?.includes(q))
     ) ?? dirigeants[0];
