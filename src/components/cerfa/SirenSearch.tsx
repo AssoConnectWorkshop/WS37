@@ -8,7 +8,6 @@ interface SireneResult {
   siren: string;
   siret_siege: string;
   raison_sociale: string;
-  sigle: string | null;
   forme_juridique: string;
   code_ape: string;
   adresse: string;
@@ -17,14 +16,6 @@ interface SireneResult {
   departement: string;
   representant_nom: string | null;
   representant_qualite: string | null;
-  date_mise_a_jour: string | null;
-  rna: string | null;
-  objet_social: string | null;
-  date_creation: string | null;
-  telephone: string | null;
-  email: string | null;
-  site_web: string | null;
-  agrement: string | null;
 }
 
 interface RnaResult {
@@ -32,42 +23,37 @@ interface RnaResult {
   objet: string | null;
   date_creation: string | null;
   agrement: string | null;
-  siege_adresse: string | null;
-  siege_cp: string | null;
-  siege_commune: string | null;
-  date_mise_a_jour: string | null;
 }
 
-interface AssoSuggestion {
+interface Suggestion {
+  siren: string;
   nom: string;
-  siren: string | null;
-  rna: string | null;
-  siret: string | null;
-  commune: string | null;
-  code_postal: string | null;
+  code_postal: string;
+  commune: string;
 }
 
 interface Props {
   onData: (data: Partial<CerfaData>, sources: Partial<Record<keyof CerfaData, FieldSource>>) => void;
 }
 
+function isNumericQuery(s: string) {
+  return /^\d[\d\s]*$/.test(s);
+}
+
 export function SirenSearch({ onData }: Props) {
-  const [sirenQuery, setSirenQuery] = useState("");
-  const [sirenLoading, setSirenLoading] = useState(false);
-  const [sirenError, setSirenError] = useState<string | null>(null);
-  const [sirenResult, setSirenResult] = useState<SireneResult | null>(null);
-
-  const [nameQuery, setNameQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<AssoSuggestion[]>([]);
-  const [nameLoading, setNameLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<SireneResult | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setShowDropdown(false);
       }
     };
@@ -75,222 +61,180 @@ export function SirenSearch({ onData }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const fetchSuggestions = useCallback((q: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (q.trim().length < 2) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      setNameLoading(true);
-      try {
-        const res = await fetch(`/api/cerfa/asso-name?q=${encodeURIComponent(q)}`);
-        const data: AssoSuggestion[] = await res.json();
-        setSuggestions(data);
-        setShowDropdown(data.length > 0);
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setNameLoading(false);
-      }
-    }, 300);
-  }, []);
-
-  const handleNameInput = (val: string) => {
-    setNameQuery(val);
-    fetchSuggestions(val);
-  };
-
-  const selectSuggestion = (s: AssoSuggestion) => {
+  const fetchAndApply = useCallback(async (siren: string) => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
     setShowDropdown(false);
-    setNameQuery(s.nom);
-    if (s.siren) {
-      setSirenQuery(s.siren);
-      // Trigger a full SIREN lookup to get all fields
-      lookupSiren(s.siren);
-    } else if (s.rna) {
-      // Pre-fill what we have from the suggestion
-      const data: Partial<CerfaData> = {
-        s1_raison_sociale: s.nom,
-        ...(s.rna && { s1_rna: s.rna }),
-        ...(s.siret && { s1_siret: s.siret }),
-        ...(s.code_postal && { s1_code_postal: s.code_postal }),
-        ...(s.commune && { s1_commune: s.commune }),
-      };
-      const sources: Partial<Record<keyof CerfaData, FieldSource>> = {};
-      (Object.keys(data) as (keyof CerfaData)[]).forEach((k) => { sources[k] = "insee"; });
-      onData(data, sources);
-    }
-  };
-
-  const lookupSiren = async (siren: string) => {
-    const clean = siren.replace(/\s/g, "");
-    if (!clean) return;
-    setSirenLoading(true);
-    setSirenError(null);
-    setSirenResult(null);
 
     try {
       const [sireneRes, rnaRes] = await Promise.all([
-        fetch(`/api/cerfa/sirene?siren=${clean}`).then((r) => r.json()),
-        fetch(`/api/cerfa/rna?siren=${clean}`).then((r) => r.json()),
+        fetch(`/api/cerfa/sirene?siren=${siren}`).then((r) => r.json()),
+        fetch(`/api/cerfa/rna?siren=${siren}`).then((r) => r.json()),
       ]);
 
-      if (sireneRes.error) {
-        setSirenError(sireneRes.error);
-        return;
-      }
+      if (sireneRes.error) { setError(sireneRes.error); return; }
 
-      setSirenResult(sireneRes);
+      setResult(sireneRes);
       const rna: RnaResult = rnaRes;
-
-      // For fields present in both sources, pick the most recently updated one.
-      // RNA date_mise_a_jour wins on tie-break since it's association-specific.
-      const sireneDate = sireneRes.date_mise_a_jour ? new Date(sireneRes.date_mise_a_jour).getTime() : 0;
-      const rnaDate = rna.date_mise_a_jour ? new Date(rna.date_mise_a_jour).getTime() : 0;
-      const rnaWins = rnaDate >= sireneDate;
-
-      const adresse = rnaWins && rna.siege_adresse ? rna.siege_adresse : (sireneRes.adresse || rna.siege_adresse);
-      const code_postal = rnaWins && rna.siege_cp ? rna.siege_cp : (sireneRes.code_postal || rna.siege_cp);
-      const commune = rnaWins && rna.siege_commune ? rna.siege_commune : (sireneRes.commune || rna.siege_commune);
-
-      // RNA: sireneRes contient déjà le RNA via minimal=false, RNA route en fallback
-      const rnaNum = sireneRes.rna || rna.rna;
-      const objetSocial = sireneRes.objet_social || rna.objet;
-      const dateCreation = sireneRes.date_creation || rna.date_creation;
-      const agrement = sireneRes.agrement || rna.agrement;
 
       const data: Partial<CerfaData> = {
         s1_siren: sireneRes.siren,
         s1_siret: sireneRes.siret_siege,
         s1_raison_sociale: sireneRes.raison_sociale,
-        ...(sireneRes.sigle && { s1_sigle: sireneRes.sigle }),
         s1_forme_juridique: sireneRes.forme_juridique,
         s1_code_ape: sireneRes.code_ape,
-        ...(adresse && { s1_adresse: adresse }),
-        ...(code_postal && { s1_code_postal: code_postal }),
-        ...(commune && { s1_commune: commune }),
+        s1_adresse: sireneRes.adresse,
+        s1_code_postal: sireneRes.code_postal,
+        s1_commune: sireneRes.commune,
         ...(sireneRes.representant_nom && { s1_representant_nom: sireneRes.representant_nom }),
         ...(sireneRes.representant_qualite && { s1_representant_qualite: sireneRes.representant_qualite }),
-        ...(rnaNum && { s1_rna: rnaNum }),
-        ...(objetSocial && { s1_objet_social: objetSocial }),
-        ...(dateCreation && { s1_date_creation: dateCreation }),
-        ...(sireneRes.telephone && { s1_tel: sireneRes.telephone }),
-        ...(sireneRes.email && { s1_email: sireneRes.email }),
-        ...(sireneRes.site_web && { s1_site_web: sireneRes.site_web }),
-        ...(agrement && { s2_agrement_type: agrement }),
+        ...(rna.rna && { s1_rna: rna.rna }),
+        ...(rna.objet && { s1_objet_social: rna.objet }),
+        ...(rna.date_creation && { s1_date_creation: rna.date_creation }),
+        ...(rna.agrement && { s2_agrement_type: rna.agrement }),
       };
 
       const sources: Partial<Record<keyof CerfaData, FieldSource>> = {};
       (Object.keys(data) as (keyof CerfaData)[]).forEach((k) => { sources[k] = "insee"; });
       onData(data, sources);
     } catch {
-      setSirenError("Erreur de connexion à l'API. Veuillez réessayer ou saisir manuellement.");
+      setError("Erreur de connexion à l'API. Veuillez réessayer ou saisir manuellement.");
     } finally {
-      setSirenLoading(false);
+      setLoading(false);
     }
+  }, [onData]);
+
+  const handleChange = (value: string) => {
+    setQuery(value);
+    setResult(null);
+    setError(null);
+
+    if (isNumericQuery(value)) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSuggestLoading(true);
+      try {
+        const res = await fetch(`/api/cerfa/search?q=${encodeURIComponent(trimmed)}`);
+        const list: Suggestion[] = await res.json();
+        setSuggestions(list);
+        setShowDropdown(list.length > 0);
+      } finally {
+        setSuggestLoading(false);
+      }
+    }, 300);
   };
 
-  const handleSirenSearch = () => lookupSiren(sirenQuery);
+  const handleSearchBySiren = () => {
+    const clean = query.replace(/\s/g, "");
+    if (!clean || !isNumericQuery(query)) return;
+    fetchAndApply(clean);
+  };
+
+  const handleSelect = (s: Suggestion) => {
+    setQuery(s.nom);
+    setSuggestions([]);
+    setShowDropdown(false);
+    fetchAndApply(s.siren);
+  };
+
+  const isText = query.trim().length > 0 && !isNumericQuery(query);
 
   return (
-    <div className="space-y-4">
-      {/* Search by name */}
-      <div>
-        <label className="text-[13px] font-semibold text-[#1A1A2E] block mb-1.5">
-          Recherche par nom
-        </label>
-        <div className="relative" ref={dropdownRef}>
-          <div className="relative">
+    <div className="space-y-3">
+      <label className="text-[13px] font-semibold text-[#1A1A2E]">
+        Recherche par nom ou SIREN / SIRET
+      </label>
+      <div ref={wrapperRef} className="relative">
+        <div className="flex gap-2">
+          <div className="relative flex-1">
             <input
               type="text"
-              value={nameQuery}
-              onChange={(e) => handleNameInput(e.target.value)}
+              value={query}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !isText) handleSearchBySiren();
+                if (e.key === "Escape") setShowDropdown(false);
+              }}
               onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
-              placeholder="Ex : Croix Rouge française, Les Restos du Cœur…"
-              className="w-full border border-[#E5E9F2] rounded-lg px-4 py-2.5 pr-10 text-[13px] text-[#1A1A2E] focus:outline-none focus:ring-2 focus:ring-[#316BF2]/30 focus:border-[#316BF2]"
+              placeholder="Nom de l'association ou numéro SIREN…"
+              className="w-full border border-[#E5E9F2] rounded-lg px-4 py-2.5 text-[13px] text-[#1A1A2E] focus:outline-none focus:ring-2 focus:ring-[#316BF2]/30 focus:border-[#316BF2]"
+              autoComplete="off"
             />
-            {nameLoading && (
-              <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6B7280] animate-spin" />
+            {suggestLoading && (
+              <Loader2 size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[#316BF2]" />
             )}
           </div>
-
-          {showDropdown && (
-            <div className="absolute z-50 w-full mt-1 bg-white border border-[#E5E9F2] rounded-lg shadow-lg overflow-hidden">
-              {suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onMouseDown={() => selectSuggestion(s)}
-                  className="w-full text-left px-4 py-3 hover:bg-[#F8FAFF] border-b border-[#E5E9F2] last:border-0 transition-colors"
-                >
-                  <div className="text-[13px] font-medium text-[#1A1A2E] truncate">{s.nom}</div>
-                  <div className="text-[11px] text-[#6B7280] mt-0.5 flex gap-3">
-                    {s.siren && <span>SIREN {s.siren}</span>}
-                    {s.rna && <span>RNA {s.rna}</span>}
-                    {s.commune && <span>{s.code_postal} {s.commune}</span>}
-                  </div>
-                </button>
-              ))}
+          {!isText && (
+            <button
+              type="button"
+              onClick={handleSearchBySiren}
+              disabled={loading || !query.trim()}
+              className="flex items-center gap-2 px-5 py-2.5 bg-[#316BF2] hover:bg-[#1E54D4] disabled:opacity-50 text-white text-[13px] font-medium rounded-lg transition-colors"
+            >
+              {loading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+              Rechercher
+            </button>
+          )}
+          {loading && isText && (
+            <div className="flex items-center px-3 text-[#316BF2]">
+              <Loader2 size={16} className="animate-spin" />
             </div>
           )}
         </div>
+
+        {showDropdown && suggestions.length > 0 && (
+          <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-[#E5E9F2] rounded-lg shadow-lg overflow-hidden">
+            {suggestions.map((s) => (
+              <li key={s.siren}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-[#F0F5FF] transition-colors flex items-center justify-between gap-4 border-b border-[#F3F4F6] last:border-0"
+                >
+                  <span className="text-[13px] font-medium text-[#1A1A2E] truncate">{s.nom}</span>
+                  <span className="text-[11px] text-[#6B7280] shrink-0">
+                    {s.code_postal} {s.commune} · {s.siren}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      {/* Divider */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1 border-t border-[#E5E9F2]" />
-        <span className="text-[11px] text-[#6B7280] font-medium uppercase tracking-wider">ou</span>
-        <div className="flex-1 border-t border-[#E5E9F2]" />
-      </div>
-
-      {/* Search by SIREN */}
-      <div>
-        <label className="text-[13px] font-semibold text-[#1A1A2E] block mb-1.5">
-          Recherche par SIREN / SIRET
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={sirenQuery}
-            onChange={(e) => setSirenQuery(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSirenSearch()}
-            placeholder="Ex : 775 672 272"
-            className="flex-1 border border-[#E5E9F2] rounded-lg px-4 py-2.5 text-[13px] text-[#1A1A2E] focus:outline-none focus:ring-2 focus:ring-[#316BF2]/30 focus:border-[#316BF2]"
-          />
-          <button
-            type="button"
-            onClick={handleSirenSearch}
-            disabled={sirenLoading || !sirenQuery.trim()}
-            className="flex items-center gap-2 px-5 py-2.5 bg-[#316BF2] hover:bg-[#1E54D4] disabled:opacity-50 text-white text-[13px] font-medium rounded-lg transition-colors"
-          >
-            {sirenLoading ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
-            Rechercher
-          </button>
-        </div>
-      </div>
-
-      {sirenError && (
+      {error && (
         <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
           <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-          <p className="text-[12px] text-red-700">{sirenError}</p>
+          <p className="text-[12px] text-red-700">{error}</p>
         </div>
       )}
 
-      {sirenResult && (
+      {result && (
         <div className="p-4 bg-[#EEF3FE] border border-[#316BF2]/20 rounded-lg space-y-2">
           <div className="flex items-center gap-2">
             <CheckCircle2 size={16} className="text-[#316BF2]" />
-            <span className="text-[13px] font-semibold text-[#316BF2]">{sirenResult.raison_sociale}</span>
+            <span className="text-[13px] font-semibold text-[#316BF2]">{result.raison_sociale}</span>
             <span className="ml-auto text-[11px] bg-[#316BF2] text-white px-2 py-0.5 rounded font-medium">Source : INSEE</span>
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[12px] text-[#6B7280]">
-            <span><b className="text-[#1A1A2E]">SIREN :</b> {sirenResult.siren}</span>
-            <span><b className="text-[#1A1A2E]">APE :</b> {sirenResult.code_ape}</span>
-            <span><b className="text-[#1A1A2E]">Siège :</b> {sirenResult.code_postal} {sirenResult.commune}</span>
-            {sirenResult.representant_nom && (
-              <span><b className="text-[#1A1A2E]">Représentant :</b> {sirenResult.representant_nom}</span>
+            <span><b className="text-[#1A1A2E]">SIREN :</b> {result.siren}</span>
+            <span><b className="text-[#1A1A2E]">APE :</b> {result.code_ape}</span>
+            <span><b className="text-[#1A1A2E]">Siège :</b> {result.code_postal} {result.commune}</span>
+            {result.representant_nom && (
+              <span><b className="text-[#1A1A2E]">Représentant :</b> {result.representant_nom}</span>
             )}
           </div>
           <p className="text-[11px] text-[#6B7280]">
