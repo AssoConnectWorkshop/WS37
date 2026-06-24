@@ -24,6 +24,7 @@ export default function NouveauProjet() {
   const [showUpload, setShowUpload] = useState(true);
   const [uploadDone, setUploadDone] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/cerfa/associations/${assoId}`)
@@ -61,10 +62,39 @@ export default function NouveauProjet() {
 
   const mergeProjectData = useCallback(
     (newData: Partial<CerfaData>, newSources: Partial<Record<keyof CerfaData, FieldSource>>) => {
-      setProjectData((d) => ({ ...d, ...newData }));
+      setProjectData((prev) => {
+        const merged = { ...prev, ...newData };
+        // Fire-and-forget autosave
+        setDraftId((currentDraftId) => {
+          const fullData = { ...assocData, ...merged };
+          const body = JSON.stringify({
+            association_id: assoId,
+            nom_projet: (fullData.s6_titre as string) || "Nouveau projet",
+            nom_association: (fullData.s1_raison_sociale as string) ?? null,
+            siren: (fullData.s1_siren as string) ?? null,
+            financeur: (fullData.s7_financeur as string) ?? null,
+            completion_pct: computeCompletion(fullData),
+            data: fullData,
+          });
+          if (currentDraftId) {
+            fetch(`/api/cerfa/projects/${currentDraftId}`, {
+              method: "PUT", headers: { "Content-Type": "application/json" }, body,
+            }).catch(() => {});
+          } else {
+            fetch("/api/cerfa/projects", {
+              method: "POST", headers: { "Content-Type": "application/json" }, body,
+            })
+              .then((r) => r.json())
+              .then((p) => { if (p.id) setDraftId(p.id); })
+              .catch(() => {});
+          }
+          return currentDraftId;
+        });
+        return merged;
+      });
       setSources((s) => ({ ...s, ...newSources }));
     },
-    []
+    [assoId, assocData]
   );
 
   const handleUploadExtracted = useCallback(
@@ -83,22 +113,29 @@ export default function NouveauProjet() {
     setSaving(true);
     try {
       const data = mergedData;
-      const res = await fetch("/api/cerfa/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          association_id: assoId,
-          nom_projet: nomProjet || data.s6_titre || "Nouveau projet",
-          nom_association: data.s1_raison_sociale ?? null,
-          siren: data.s1_siren ?? null,
-          financeur: financeur || data.s7_financeur || null,
-          completion_pct: pct,
-          data,
-        }),
-      });
+      const body = {
+        association_id: assoId,
+        nom_projet: nomProjet || data.s6_titre || "Nouveau projet",
+        nom_association: data.s1_raison_sociale ?? null,
+        siren: data.s1_siren ?? null,
+        financeur: financeur || data.s7_financeur || null,
+        completion_pct: pct,
+        data,
+      };
+      const res = draftId
+        ? await fetch(`/api/cerfa/projects/${draftId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/cerfa/projects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
       const project = await res.json();
       if (!res.ok) throw new Error(project.error);
-      router.push(`/${assoId}/en-cours?id=${project.id}`);
+      router.push(`/${assoId}/en-cours?id=${draftId ?? project.id}`);
     } catch (err) {
       alert("Erreur lors de la sauvegarde : " + (err instanceof Error ? err.message : "inconnue"));
     } finally {
