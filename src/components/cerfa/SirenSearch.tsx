@@ -8,6 +8,7 @@ interface SireneResult {
   siren: string;
   siret_siege: string;
   raison_sociale: string;
+  sigle: string | null;
   forme_juridique: string;
   code_ape: string;
   adresse: string;
@@ -17,6 +18,13 @@ interface SireneResult {
   representant_nom: string | null;
   representant_qualite: string | null;
   date_mise_a_jour: string | null;
+  rna: string | null;
+  objet_social: string | null;
+  date_creation: string | null;
+  telephone: string | null;
+  email: string | null;
+  site_web: string | null;
+  agrement: string | null;
 }
 
 interface RnaResult {
@@ -147,10 +155,17 @@ export function SirenSearch({ onData }: Props) {
       const code_postal = rnaWins && rna.siege_cp ? rna.siege_cp : (sireneRes.code_postal || rna.siege_cp);
       const commune = rnaWins && rna.siege_commune ? rna.siege_commune : (sireneRes.commune || rna.siege_commune);
 
+      // RNA: sireneRes contient déjà le RNA via minimal=false, RNA route en fallback
+      const rnaNum = sireneRes.rna || rna.rna;
+      const objetSocial = sireneRes.objet_social || rna.objet;
+      const dateCreation = sireneRes.date_creation || rna.date_creation;
+      const agrement = sireneRes.agrement || rna.agrement;
+
       const data: Partial<CerfaData> = {
         s1_siren: sireneRes.siren,
         s1_siret: sireneRes.siret_siege,
         s1_raison_sociale: sireneRes.raison_sociale,
+        ...(sireneRes.sigle && { s1_sigle: sireneRes.sigle }),
         s1_forme_juridique: sireneRes.forme_juridique,
         s1_code_ape: sireneRes.code_ape,
         ...(adresse && { s1_adresse: adresse }),
@@ -158,10 +173,13 @@ export function SirenSearch({ onData }: Props) {
         ...(commune && { s1_commune: commune }),
         ...(sireneRes.representant_nom && { s1_representant_nom: sireneRes.representant_nom }),
         ...(sireneRes.representant_qualite && { s1_representant_qualite: sireneRes.representant_qualite }),
-        ...(rna.rna && { s1_rna: rna.rna }),
-        ...(rna.objet && { s1_objet_social: rna.objet }),
-        ...(rna.date_creation && { s1_date_creation: rna.date_creation }),
-        ...(rna.agrement && { s2_agrement_type: rna.agrement }),
+        ...(rnaNum && { s1_rna: rnaNum }),
+        ...(objetSocial && { s1_objet_social: objetSocial }),
+        ...(dateCreation && { s1_date_creation: dateCreation }),
+        ...(sireneRes.telephone && { s1_tel: sireneRes.telephone }),
+        ...(sireneRes.email && { s1_email: sireneRes.email }),
+        ...(sireneRes.site_web && { s1_site_web: sireneRes.site_web }),
+        ...(agrement && { s2_agrement_type: agrement }),
       };
 
       const sources: Partial<Record<keyof CerfaData, FieldSource>> = {};
