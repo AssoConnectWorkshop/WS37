@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Send, Loader2, CheckCircle2, Bot, Sparkles } from "lucide-react";
+import { Send, Loader2, CheckCircle2, Bot, Sparkles, FileDown } from "lucide-react";
 import type { CerfaData, FieldSource } from "./types";
 
 interface Message {
@@ -12,9 +12,10 @@ interface Message {
 interface Props {
   data: CerfaData;
   onFillFields: (data: Partial<CerfaData>, sources: Partial<Record<keyof CerfaData, FieldSource>>) => void;
+  onSave?: () => void;
 }
 
-export function ProjectChat({ data, onFillFields }: Props) {
+export function ProjectChat({ data, onFillFields, onSave }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -154,9 +155,18 @@ export function ProjectChat({ data, onFillFields }: Props) {
         </div>
       )}
       {isDone && (
-        <div className="border-t border-[#E5E9F2] px-4 py-3 flex items-center gap-2 text-[12px] text-[#6B7280]">
-          <Sparkles size={13} className="text-[#316BF2]" />
-          Toutes les informations clés ont été recueillies.
+        <div className="border-t border-[#E5E9F2] px-4 py-3 flex items-center gap-3">
+          <Sparkles size={13} className="text-[#316BF2] shrink-0" />
+          <span className="text-[12px] text-[#6B7280] flex-1">Toutes les informations clés ont été recueillies.</span>
+          {onSave && (
+            <button
+              type="button"
+              onClick={onSave}
+              className="flex items-center gap-2 px-4 py-2 bg-[#316BF2] hover:bg-[#1E54D4] text-white text-[13px] font-semibold rounded-lg transition-colors shrink-0"
+            >
+              <FileDown size={14} /> Sauvegarder
+            </button>
+          )}
         </div>
       )}
     </div>

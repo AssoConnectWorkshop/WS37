@@ -274,7 +274,7 @@ export default function NouveauProjet() {
             <h2 className="text-[14px] font-semibold text-[#316BF2]">Assistant — Compléter le dossier</h2>
             <span className="ml-auto text-[12px] text-[#6B7280]">{pct}% complété</span>
           </div>
-          <ProjectChat data={mergedData} onFillFields={mergeProjectData} />
+          <ProjectChat data={mergedData} onFillFields={mergeProjectData} onSave={generate} />
         </div>
       )}
 
