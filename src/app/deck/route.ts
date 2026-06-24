@@ -6,6 +6,9 @@ const html = /* html */ `<!DOCTYPE html>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WS37 — Project Deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,600;0,700;1,400&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root {
     --ink: #1A1A2E;
@@ -13,12 +16,12 @@ const html = /* html */ `<!DOCTYPE html>
     --blue-deep: #1E4FD8;
     --blue-light: #EBF0FE;
     --blue-mid: #93B0FA;
-    --slate: #596285;
+    --slate: #3D4566;
     --paper: #F6F7FC;
     --rule: #D8DCF0;
     --white: #FFFFFF;
-    --ff-display: Georgia, "Times New Roman", serif;
-    --ff-body: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --ff-display: "Poppins", system-ui, sans-serif;
+    --ff-body: "Roboto", system-ui, sans-serif;
     --s1: 0.75rem;
     --s2: 1rem;
     --s3: 1.25rem;
@@ -92,6 +95,7 @@ const html = /* html */ `<!DOCTYPE html>
   }
 
   .cover-eyebrow {
+    font-family: var(--ff-body);
     font-size: var(--s1);
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -102,17 +106,18 @@ const html = /* html */ `<!DOCTYPE html>
   .cover-title {
     font-family: var(--ff-display);
     font-size: clamp(3.5rem, 8vw, 7rem);
-    font-weight: 400;
+    font-weight: 700;
     line-height: 1.0;
     text-wrap: balance;
     margin-bottom: 2rem;
     color: var(--white);
     position: relative;
   }
-  .cover-title em { color: var(--blue); font-style: italic; }
+  .cover-title em { color: var(--blue); font-style: italic; font-weight: 400; }
   .cover-sub {
+    font-family: var(--ff-body);
     font-size: var(--s3);
-    color: rgba(255,255,255,0.5);
+    color: rgba(255,255,255,0.65);
     max-width: 38ch;
     line-height: 1.55;
     margin-bottom: 3.5rem;
@@ -122,7 +127,7 @@ const html = /* html */ `<!DOCTYPE html>
     display: flex;
     gap: 2rem;
     font-size: var(--s1);
-    color: rgba(255,255,255,0.3);
+    color: rgba(255,255,255,0.35);
     letter-spacing: 0.1em;
     text-transform: uppercase;
     border-top: 1px solid rgba(255,255,255,0.1);
@@ -133,9 +138,9 @@ const html = /* html */ `<!DOCTYPE html>
   /* Content variants */
   .slide--content { background: var(--paper); }
   .slide--white   { background: var(--white); }
-  .slide--blue    { background: var(--blue); color: var(--white); }
 
   .slide-label {
+    font-family: var(--ff-body);
     font-size: var(--s1);
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -143,18 +148,16 @@ const html = /* html */ `<!DOCTYPE html>
     margin-bottom: 0.875rem;
     font-weight: 700;
   }
-  .slide--blue .slide-label { color: var(--blue-mid); }
 
   .slide-title {
     font-family: var(--ff-display);
     font-size: clamp(2rem, 4vw, 3.25rem);
-    font-weight: 400;
+    font-weight: 600;
     line-height: 1.1;
     text-wrap: balance;
     margin-bottom: 2rem;
     color: var(--ink);
   }
-  .slide--blue .slide-title { color: var(--white); }
 
   .rule {
     width: 2.75rem; height: 2px;
@@ -162,7 +165,6 @@ const html = /* html */ `<!DOCTYPE html>
     margin-bottom: 2.25rem;
     border-radius: 1px;
   }
-  .slide--blue .rule { background: rgba(255,255,255,0.35); }
 
   /* Problem */
   .problem-list { list-style: none; display: flex; flex-direction: column; gap: 1.75rem; max-width: 52ch; }
@@ -176,22 +178,22 @@ const html = /* html */ `<!DOCTYPE html>
     flex-shrink: 0; margin-top: 2px;
     font-variant-numeric: tabular-nums;
   }
-  .problem-text { font-size: var(--s3); font-weight: 600; line-height: 1.3; margin-bottom: 0.3rem; }
+  .problem-text { font-size: var(--s3); font-weight: 700; line-height: 1.3; margin-bottom: 0.3rem; color: var(--ink); }
   .problem-sub  { font-size: var(--s2); color: var(--slate); line-height: 1.5; }
 
   /* Solution */
   .solution-body { display: grid; grid-template-columns: 1fr 1fr; gap: 5rem; align-items: center; max-width: 900px; }
   .solution-text { font-size: var(--s3); line-height: 1.65; color: var(--ink); }
-  .solution-text strong { color: var(--blue); font-weight: 600; }
+  .solution-text strong { color: var(--blue); font-weight: 700; }
   .solution-stats { display: flex; flex-direction: column; gap: 1.75rem; }
   .stat { display: flex; flex-direction: column; gap: 0.2rem; padding-left: 1.25rem; border-left: 2px solid var(--blue-light); }
-  .stat-num   { font-family: var(--ff-display); font-size: var(--s6); line-height: 1; color: var(--blue); font-variant-numeric: tabular-nums; }
-  .stat-label { font-size: var(--s1); color: var(--slate); text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4; }
+  .stat-num   { font-family: var(--ff-display); font-size: var(--s6); line-height: 1; color: var(--blue); font-variant-numeric: tabular-nums; font-weight: 700; }
+  .stat-label { font-size: var(--s1); color: var(--slate); text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4; font-weight: 500; }
 
   /* Features */
   .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; max-width: 860px; }
   .feature-card {
-    background: var(--white); border: 1px solid var(--rule); border-radius: 3px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 3px;
     padding: 1.75rem; display: flex; flex-direction: column; gap: 0.875rem;
   }
   .feature-icon {
@@ -201,18 +203,7 @@ const html = /* html */ `<!DOCTYPE html>
     color: var(--blue); flex-shrink: 0;
   }
   .feature-name { font-size: var(--s2); font-weight: 700; color: var(--ink); line-height: 1.2; }
-  .feature-desc { font-size: calc(var(--s2) * 0.93); color: var(--slate); line-height: 1.55; }
-
-  /* Stack */
-  .stack-layers { display: flex; flex-direction: column; gap: 2rem; max-width: 680px; }
-  .stack-layer-label { font-size: var(--s1); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.45); font-weight: 700; margin-bottom: 0.625rem; }
-  .stack-pills { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-  .stack-pill {
-    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.18);
-    border-radius: 2px; padding: 0.45rem 0.875rem;
-    font-size: var(--s2); color: rgba(255,255,255,0.85); font-weight: 500;
-  }
-  .stack-pill--accent { background: rgba(255,255,255,0.92); color: var(--blue-deep); border-color: transparent; font-weight: 700; }
+  .feature-desc { font-size: calc(var(--s2) * 0.95); color: var(--slate); line-height: 1.55; }
 
   /* Flow */
   .flow-wrap { overflow-x: auto; }
@@ -222,7 +213,7 @@ const html = /* html */ `<!DOCTYPE html>
   .flow-bar { height: 3px; background: var(--blue); margin-bottom: 1.25rem; border-radius: 1px; }
   .flow-num  { font-size: var(--s1); font-variant-numeric: tabular-nums; color: var(--blue); font-weight: 700; letter-spacing: 0.08em; margin-bottom: 0.625rem; }
   .flow-name { font-size: var(--s3); font-weight: 700; color: var(--ink); line-height: 1.2; margin-bottom: 0.5rem; }
-  .flow-desc { font-size: calc(var(--s2) * 0.92); color: var(--slate); line-height: 1.5; padding-right: 1rem; }
+  .flow-desc { font-size: calc(var(--s2) * 0.95); color: var(--slate); line-height: 1.5; padding-right: 1rem; }
 
   /* Next steps */
   .next-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; max-width: 860px; }
@@ -230,8 +221,8 @@ const html = /* html */ `<!DOCTYPE html>
   .next-name { font-size: var(--s3); font-weight: 700; color: var(--ink); margin-bottom: 0.625rem; line-height: 1.25; }
   .next-desc { font-size: calc(var(--s2) * 0.95); color: var(--slate); line-height: 1.55; }
   .demo-footer { margin-top: 3rem; padding-top: 2rem; border-top: 1px solid var(--rule); }
-  .demo-footer-label { font-size: var(--s1); color: var(--slate); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.25rem; }
-  .demo-footer-url { font-size: var(--s3); color: var(--blue); font-weight: 600; }
+  .demo-footer-label { font-size: var(--s1); color: var(--slate); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 0.25rem; font-weight: 500; }
+  .demo-footer-url { font-size: var(--s3); color: var(--blue); font-weight: 700; }
 
   @media (max-width: 768px) {
     .slide { padding: 2.5rem 1.75rem; }
@@ -253,9 +244,8 @@ const html = /* html */ `<!DOCTYPE html>
   <button class="nav-dot" data-idx="1" title="The problem"></button>
   <button class="nav-dot" data-idx="2" title="The solution"></button>
   <button class="nav-dot" data-idx="3" title="Features"></button>
-  <button class="nav-dot" data-idx="4" title="Architecture"></button>
-  <button class="nav-dot" data-idx="5" title="User journey"></button>
-  <button class="nav-dot" data-idx="6" title="What's next"></button>
+  <button class="nav-dot" data-idx="4" title="User journey"></button>
+  <button class="nav-dot" data-idx="5" title="What's next"></button>
 </nav>
 
 <!-- 1 · Cover -->
@@ -361,49 +351,8 @@ const html = /* html */ `<!DOCTYPE html>
   </div>
 </section>
 
-<!-- 5 · Stack -->
-<section class="slide slide--blue" id="s4">
-  <p class="slide-label">Architecture</p>
-  <h2 class="slide-title">A modern stack,<br>deployed continuously.</h2>
-  <div class="rule"></div>
-  <div class="stack-layers">
-    <div>
-      <p class="stack-layer-label">Frontend</p>
-      <div class="stack-pills">
-        <span class="stack-pill stack-pill--accent">Next.js 15</span>
-        <span class="stack-pill">App Router</span>
-        <span class="stack-pill">TypeScript</span>
-        <span class="stack-pill">Tailwind CSS v4</span>
-      </div>
-    </div>
-    <div>
-      <p class="stack-layer-label">Data &amp; APIs</p>
-      <div class="stack-pills">
-        <span class="stack-pill stack-pill--accent">Supabase</span>
-        <span class="stack-pill">AssoConnect API</span>
-        <span class="stack-pill">Sirene API (INSEE)</span>
-      </div>
-    </div>
-    <div>
-      <p class="stack-layer-label">Document processing</p>
-      <div class="stack-pills">
-        <span class="stack-pill">mammoth (Word &rarr; HTML)</span>
-        <span class="stack-pill">pdf-lib</span>
-      </div>
-    </div>
-    <div>
-      <p class="stack-layer-label">Deployment</p>
-      <div class="stack-pills">
-        <span class="stack-pill stack-pill--accent">Vercel</span>
-        <span class="stack-pill">Preview per branch</span>
-        <span class="stack-pill">Production on main</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- 6 · User journey -->
-<section class="slide slide--content" id="s5">
+<!-- 5 · User journey -->
+<section class="slide slide--content" id="s4">
   <p class="slide-label">User journey</p>
   <h2 class="slide-title">From zero to a complete<br>grant application.</h2>
   <div class="rule"></div>
@@ -440,8 +389,8 @@ const html = /* html */ `<!DOCTYPE html>
   </div>
 </section>
 
-<!-- 7 · Next steps -->
-<section class="slide slide--white" id="s6">
+<!-- 6 · Next steps -->
+<section class="slide slide--white" id="s5">
   <p class="slide-label">What&rsquo;s next</p>
   <h2 class="slide-title">What&rsquo;s still to build.</h2>
   <div class="rule"></div>
