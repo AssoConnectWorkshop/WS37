@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Plus, ChevronRight, Loader2, Search } from "lucide-react";
+import { Building2, Plus, ChevronRight, Loader2, Search, Trash2 } from "lucide-react";
 import type { CerfaAssociation } from "@/components/cerfa/types";
 
 interface Suggestion {
@@ -26,6 +26,7 @@ export default function CerfaHome() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -121,6 +122,18 @@ export default function CerfaHome() {
     }
   }, [createAssociation]);
 
+  const handleDelete = useCallback(async (id: string, nom: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Supprimer "${nom}" ? Cette action est irréversible.`)) return;
+    setDeletingId(id);
+    try {
+      await fetch(`/api/cerfa/associations/${id}`, { method: "DELETE" });
+      setAssociations((prev) => prev.filter((a) => a.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
+
   const handleCreate = () => {
     const q = query.trim();
     if (!q) return;
@@ -169,6 +182,14 @@ export default function CerfaHome() {
                     </p>
                   </div>
                   <ChevronRight size={16} className="text-[#6B7280] shrink-0" />
+                  <button
+                    type="button"
+                    onClick={(e) => handleDelete(a.id, a.nom, e)}
+                    disabled={deletingId === a.id}
+                    className="ml-1 p-1.5 rounded-lg text-[#6B7280] hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                  >
+                    {deletingId === a.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                  </button>
                 </button>
               ))}
 
