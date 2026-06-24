@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { FileDown, Loader2, Info } from "lucide-react";
 import Link from "next/link";
@@ -28,13 +28,24 @@ export default function NouveauProjet() {
   }, []);
 
   // Merged view for completion and form display
-  const mergedData: CerfaData = { ...assocData, ...projectData };
+  const mergedData: CerfaData = useMemo(() => ({ ...assocData, ...projectData }), [assocData, projectData]);
   const pct = computeCompletion(mergedData);
 
   const handleFieldChange = useCallback((key: keyof CerfaData, value: string) => {
     setProjectData((d) => ({ ...d, [key]: value }));
     setSources((s) => ({ ...s, [key]: "manuel" as FieldSource }));
   }, []);
+
+  const handleSuggest = useCallback(async (key: keyof CerfaData, fieldLabel: string, sectionTitle: string) => {
+    const res = await fetch("/api/cerfa/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fieldKey: key, fieldLabel, sectionTitle, data: mergedData }),
+    });
+    if (!res.ok) throw new Error("Erreur lors de la génération");
+    const { suggestion } = await res.json();
+    handleFieldChange(key, suggestion);
+  }, [mergedData, handleFieldChange]);
 
   const generate = async () => {
     setSaving(true);
@@ -202,6 +213,7 @@ export default function NouveauProjet() {
               data={mergedData}
               sources={sources}
               onChange={handleFieldChange}
+              onSuggest={handleSuggest}
               defaultOpen={i === 0}
             />
           ))}
