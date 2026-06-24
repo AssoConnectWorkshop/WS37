@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderOpen, Clock, Plus } from "lucide-react";
+import { FolderOpen, Clock, Plus, Building2 } from "lucide-react";
 
 const ITEMS = [
+  { href: "/cerfa/association", icon: Building2, label: "Mon association" },
   { href: "/cerfa/en-cours", icon: FolderOpen, label: "Projet en cours" },
   { href: "/cerfa/historique", icon: Clock, label: "Historique" },
   { href: "/cerfa/nouveau", icon: Plus, label: "Nouveau projet" },
