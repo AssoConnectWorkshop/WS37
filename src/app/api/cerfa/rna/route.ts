@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       siege_adresse: asso.adresse_siege?.voie ?? null,
       siege_cp: asso.adresse_siege?.code_postal ?? null,
       siege_commune: asso.adresse_siege?.commune ?? null,
+      date_mise_a_jour: asso.date_mise_a_jour ?? asso.date_derniere_mise_a_jour ?? null,
     });
   } catch {
     return NextResponse.json({ rna: null }, { status: 200 });
