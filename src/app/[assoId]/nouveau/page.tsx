@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { FileDown, Loader2, Info } from "lucide-react";
+import { FileDown, Loader2, Info, ChevronDown, ChevronUp, FileText, X } from "lucide-react";
 import Link from "next/link";
 import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
+import { ProjectChat } from "@/components/cerfa/ProjectChat";
 import type { CerfaData, FieldSource } from "@/components/cerfa/types";
 import { PROJECT_SECTIONS, SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 
@@ -20,6 +21,9 @@ export default function NouveauProjet() {
   const [financeur, setFinanceur] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingAssoc, setLoadingAssoc] = useState(true);
+  const [showUpload, setShowUpload] = useState(true);
+  const [uploadDone, setUploadDone] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     fetch(`/api/cerfa/associations/${assoId}`)
@@ -54,6 +58,18 @@ export default function NouveauProjet() {
     },
     []
   );
+
+  const handleUploadExtracted = useCallback(
+    (newData: Partial<CerfaData>, newSources: Partial<Record<keyof CerfaData, FieldSource>>) => {
+      mergeProjectData(newData, newSources);
+      setUploadDone(true);
+    },
+    [mergeProjectData]
+  );
+
+  const skipUpload = () => {
+    setShowUpload(false);
+  };
 
   const generate = async () => {
     setSaving(true);
@@ -90,7 +106,7 @@ export default function NouveauProjet() {
   const assocSections = SECTIONS.filter((s) => [1, 2, 3, 4, 5].includes(s.id));
 
   return (
-    <div className="p-8 max-w-4xl mx-auto space-y-8">
+    <div className="p-8 max-w-4xl mx-auto space-y-6">
       <div>
         <h1 className="text-[22px] font-bold text-[#1A1A2E]">Nouveau projet de subvention</h1>
         <p className="text-[13px] text-[#6B7280] mt-1">
@@ -98,6 +114,7 @@ export default function NouveauProjet() {
         </p>
       </div>
 
+      {/* General info */}
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6 space-y-4"
         style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
         <h2 className="text-[15px] font-semibold text-[#1A1A2E]">Informations générales</h2>
@@ -125,6 +142,7 @@ export default function NouveauProjet() {
         </div>
       </div>
 
+      {/* Association data notice */}
       <div className={`rounded-xl p-4 flex items-start gap-3 ${
         loadingAssoc ? "bg-[#F8FAFF] border border-[#E5E9F2]"
         : hasAssocData ? "bg-[#EEF3FE] border border-[#316BF2]/20"
@@ -154,6 +172,62 @@ export default function NouveauProjet() {
         </div>
       </div>
 
+      {/* Document upload (optional) */}
+      {showUpload && !uploadDone && (
+        <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
+          style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h2 className="text-[15px] font-semibold text-[#1A1A2E]">Document de présentation</h2>
+              <p className="text-[12px] text-[#6B7280] mt-0.5">
+                Importez une note de présentation, un dossier de demande… pour pré-remplir le formulaire automatiquement.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={skipUpload}
+              className="flex items-center gap-1.5 text-[12px] text-[#6B7280] hover:text-[#316BF2] transition-colors shrink-0 mt-0.5"
+            >
+              <X size={13} /> Passer
+            </button>
+          </div>
+          <div className="mt-4">
+            <DocumentUpload context="projet" onExtracted={handleUploadExtracted} />
+          </div>
+        </div>
+      )}
+
+      {uploadDone && (
+        <div className="flex items-center gap-3 p-4 bg-[#EEF3FE] border border-[#316BF2]/20 rounded-xl">
+          <FileText size={16} className="text-[#316BF2] shrink-0" />
+          <div className="flex-1">
+            <p className="text-[13px] font-medium text-[#316BF2]">Document analysé</p>
+            <p className="text-[12px] text-[#4B5563]">Les informations ont été extraites et pré-remplies dans le formulaire.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setUploadDone(false); setShowUpload(true); }}
+            className="text-[12px] text-[#316BF2] hover:underline"
+          >
+            Ajouter un document
+          </button>
+        </div>
+      )}
+
+      {/* Chat assistant */}
+      {(!showUpload || uploadDone) && (
+        <div className="bg-white border border-[#316BF2]/20 rounded-xl overflow-hidden"
+          style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+          <div className="px-6 py-4 border-b border-[#E5E9F2] bg-[#EEF3FE] flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-[#316BF2] animate-pulse" />
+            <h2 className="text-[14px] font-semibold text-[#316BF2]">Assistant — Compléter le dossier</h2>
+            <span className="ml-auto text-[12px] text-[#6B7280]">{pct}% complété</span>
+          </div>
+          <ProjectChat data={mergedData} onFillFields={mergeProjectData} />
+        </div>
+      )}
+
+      {/* Association sections (collapsed review) */}
       {hasAssocData && (
         <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
           style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
@@ -178,39 +252,41 @@ export default function NouveauProjet() {
         </div>
       )}
 
-      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
-        <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-1">Import du document de présentation</h2>
-        <p className="text-[12px] text-[#6B7280] mb-4">
-          Notes de présentation, dossiers de demande, descriptifs d&apos;actions… → pré-remplit la section 6
-        </p>
-        <DocumentUpload context="projet" onExtracted={mergeProjectData} />
-      </div>
-
+      {/* Project form */}
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
         style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[15px] font-semibold text-[#1A1A2E]">Formulaire Cerfa 12156*06</h2>
-          <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+            <h2 className="text-[15px] font-semibold text-[#1A1A2E]">Formulaire Cerfa 12156*06</h2>
             <span className="text-[13px] font-semibold text-[#316BF2]">{pct}%</span>
-            <span className="text-[12px] text-[#6B7280]">complété</span>
           </div>
-        </div>
-        <div className="w-full bg-[#E5E9F2] rounded-full h-2 mb-6">
-          <div className="bg-[#316BF2] h-2 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-        </div>
-        <div className="space-y-3">
-          {PROJECT_SECTIONS.map((section, i) => (
-            <SectionAccordion
-              key={section.id}
-              section={section}
-              data={mergedData}
-              sources={sources}
-              onChange={handleFieldChange}
-              onSuggest={handleSuggest}
-              defaultOpen={i === 0}
-            />
-          ))}
-        </div>
+          <div className="flex items-center gap-2">
+            <div className="w-24 bg-[#E5E9F2] rounded-full h-1.5">
+              <div className="bg-[#316BF2] h-1.5 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+            {showForm ? <ChevronUp size={16} className="text-[#6B7280]" /> : <ChevronDown size={16} className="text-[#6B7280]" />}
+          </div>
+        </button>
+
+        {showForm && (
+          <div className="space-y-3 mt-5">
+            {PROJECT_SECTIONS.map((section, i) => (
+              <SectionAccordion
+                key={section.id}
+                section={section}
+                data={mergedData}
+                sources={sources}
+                onChange={handleFieldChange}
+                onSuggest={handleSuggest}
+                defaultOpen={i === 0}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="pb-8">
