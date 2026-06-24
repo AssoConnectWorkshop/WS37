@@ -1,4 +1,4 @@
-export type FieldSource = "insee" | "document" | "manuel";
+export type FieldSource = "insee" | "document" | "manuel" | "association";
 
 export interface CerfaData {
   // Section 0 — Nature de la demande

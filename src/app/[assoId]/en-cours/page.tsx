@@ -41,18 +41,46 @@ function EnCours() {
     const id = searchParams.get("id");
     const load = async () => {
       try {
+        const [projectRes, assoRes] = await Promise.all([
+          id ? fetch(`/api/cerfa/projects/${id}`) : fetch(`/api/cerfa/projects?association_id=${assoId}`),
+          fetch(`/api/cerfa/associations/${assoId}`),
+        ]);
+
+        let project: CerfaProject | null = null;
         if (id) {
-          const res = await fetch(`/api/cerfa/projects/${id}`);
-          const p = await res.json();
-          if (res.ok) { setProject(p); return; }
-        }
-        const res = await fetch(`/api/cerfa/projects?association_id=${assoId}`);
-        const list = await res.json();
-        if (Array.isArray(list) && list.length > 0) {
-          setProject(list.find((p: CerfaProject) => p.statut === "en_cours") ?? list[0]);
+          const p = await projectRes.json();
+          if (projectRes.ok) project = p;
         } else {
-          setError("Aucun projet en cours. Créez un nouveau projet.");
+          const list = await projectRes.json();
+          if (Array.isArray(list) && list.length > 0) {
+            project = list.find((p: CerfaProject) => p.statut === "en_cours") ?? list[0];
+          }
         }
+
+        if (!project) {
+          setError("Aucun projet en cours. Créez un nouveau projet.");
+          return;
+        }
+
+        if (assoRes.ok) {
+          const asso = await assoRes.json();
+          if (asso.data) {
+            const assoData: CerfaData = asso.data;
+            const projectData: CerfaData = (project.data as CerfaData) ?? {};
+            const merged: CerfaData = { ...projectData };
+            const newSources: Partial<Record<keyof CerfaData, FieldSource>> = {};
+            for (const k of Object.keys(assoData) as (keyof CerfaData)[]) {
+              if (assoData[k] && !projectData[k]) {
+                (merged as Record<string, string>)[k] = assoData[k] as string;
+                newSources[k] = "association";
+              }
+            }
+            project = { ...project, data: merged };
+            setSources(newSources);
+          }
+        }
+
+        setProject(project);
       } catch {
         setError("Erreur lors du chargement du projet.");
       } finally {
