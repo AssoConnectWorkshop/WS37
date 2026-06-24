@@ -95,7 +95,7 @@ export default function MonAssociation() {
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
         style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">
-          1. Identification automatique via SIREN / SIRET
+          1. Identification automatique
         </h2>
         <SirenSearch onData={mergeData} />
       </div>
