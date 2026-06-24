@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
-import { CheckCircle2, AlertCircle, Circle, Edit2, Loader2, Save, ArrowRight } from "lucide-react";
+import { AlertCircle, Loader2, Save } from "lucide-react";
 import type { CerfaData, CerfaProject, FieldSource } from "@/components/cerfa/types";
 import { SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
+import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
 
 function CircularProgress({ pct }: { pct: number }) {
   const r = 40;
@@ -24,19 +25,12 @@ function CircularProgress({ pct }: { pct: number }) {
   );
 }
 
-function sectionStatus(section: typeof SECTIONS[0], data: Record<string, unknown>) {
-  const vals = section.fields.map((f) => data[f.key]);
-  const filled = vals.filter((v) => v !== undefined && v !== null && String(v).trim() !== "").length;
-  if (filled === 0) return "empty";
-  if (filled === vals.length) return "complete";
-  return "partial";
-}
-
 function EnCours() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { assoId } = useParams<{ assoId: string }>();
   const [project, setProject] = useState<CerfaProject | null>(null);
+  const [sources, setSources] = useState<Partial<Record<keyof CerfaData, FieldSource>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -67,29 +61,45 @@ function EnCours() {
     load();
   }, [searchParams, assoId]);
 
+  const persistProject = useCallback(async (updated: CerfaProject) => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await fetch(`/api/cerfa/projects/${updated.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom_projet: updated.nom_projet, nom_association: updated.nom_association, siren: updated.siren, financeur: updated.financeur, statut: updated.statut, completion_pct: updated.completion_pct, data: updated.data }),
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  const handleFieldChange = useCallback((key: keyof CerfaData, value: string) => {
+    setProject((prev) => {
+      if (!prev) return prev;
+      const newData = { ...(prev.data as CerfaData), [key]: value };
+      const pct = computeCompletion(newData);
+      const updated = { ...prev, data: newData, completion_pct: pct };
+      persistProject(updated);
+      return updated;
+    });
+    setSources((s) => ({ ...s, [key]: "manuel" as FieldSource }));
+  }, [persistProject]);
+
   const mergeAndSave = useCallback(
-    async (newData: Partial<CerfaData>, _sources: Partial<Record<keyof CerfaData, FieldSource>>) => {
+    async (newData: Partial<CerfaData>, newSources: Partial<Record<keyof CerfaData, FieldSource>>) => {
       if (!project) return;
-      const merged = { ...project.data, ...newData };
+      const merged = { ...(project.data as CerfaData), ...newData };
       const pct = computeCompletion(merged);
       const updated = { ...project, data: merged, completion_pct: pct };
       setProject(updated);
-
-      setSaving(true);
-      setSaved(false);
-      try {
-        await fetch(`/api/cerfa/projects/${project.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ nom_projet: project.nom_projet, nom_association: project.nom_association, siren: project.siren, financeur: project.financeur, statut: project.statut, completion_pct: pct, data: merged }),
-        });
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      } finally {
-        setSaving(false);
-      }
+      setSources((s) => ({ ...s, ...newSources }));
+      await persistProject(updated);
     },
-    [project]
+    [project, persistProject]
   );
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 size={32} className="animate-spin text-[#316BF2]" /></div>;
@@ -111,14 +121,14 @@ function EnCours() {
     );
   }
 
-  const data = project.data as Record<string, unknown>;
+  const data = project.data as CerfaData;
 
   return (
     <div className="p-8 max-w-3xl mx-auto space-y-6 pb-16">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-[22px] font-bold text-[#1A1A2E]">Projet en cours</h1>
-          <p className="text-[13px] text-[#6B7280] mt-1">Importez des documents pour enrichir le dossier automatiquement.</p>
+          <p className="text-[13px] text-[#6B7280] mt-1">Modifiez les sections directement ou importez des documents pour enrichir le dossier.</p>
         </div>
         {(saving || saved) && (
           <div className={`flex items-center gap-1.5 text-[12px] font-medium px-3 py-1.5 rounded-full ${saved ? "bg-green-50 text-green-600" : "bg-[#EEF3FE] text-[#316BF2]"}`}>
@@ -137,9 +147,6 @@ function EnCours() {
           {project.financeur && <p className="text-[13px] text-[#6B7280]">Financeur : {project.financeur}</p>}
           <p className="text-[12px] text-[#6B7280]">Mis à jour le {new Date(project.updated_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}</p>
         </div>
-        <button onClick={() => router.push(`/${assoId}/nouveau`)} className="flex items-center gap-2 px-5 py-2.5 border border-[#316BF2] text-[#316BF2] text-[13px] font-medium rounded-lg hover:bg-[#EEF3FE] transition-colors shrink-0">
-          <Edit2 size={14} /> Modifier le formulaire
-        </button>
       </div>
 
       <div className="bg-white border border-[#E5E9F2] rounded-xl overflow-hidden" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
@@ -159,31 +166,29 @@ function EnCours() {
       </div>
 
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
-        <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">Avancement par section</h2>
-        {SECTIONS.map((section) => {
-          const status = sectionStatus(section, data);
-          const filled = section.fields.filter((f) => { const v = data[f.key]; return v !== undefined && v !== null && String(v).trim() !== ""; }).length;
-          return (
-            <div key={section.id} className="flex items-center gap-3 py-2.5 border-b border-[#E5E9F2] last:border-0">
-              {status === "complete" ? (
-                <CheckCircle2 size={18} className="text-green-500 shrink-0" />
-              ) : status === "partial" ? (
-                <AlertCircle size={18} className="text-amber-500 shrink-0" />
-              ) : (
-                <Circle size={18} className="text-gray-300 shrink-0" />
-              )}
-              <span className="flex-1 text-[13px] text-[#1A1A2E]">Section {section.id} — {section.title}</span>
-              <span className={`text-[12px] font-medium ${
-                status === "complete" ? "text-green-600" : status === "partial" ? "text-amber-600" : "text-gray-400"
-              }`}>{filled}/{section.fields.length} champs</span>
-            </div>
-          );
-        })}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[15px] font-semibold text-[#1A1A2E]">Formulaire Cerfa 12156*06</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-[#316BF2]">{project.completion_pct}%</span>
+            <span className="text-[12px] text-[#6B7280]">complété</span>
+          </div>
+        </div>
+        <div className="w-full bg-[#E5E9F2] rounded-full h-2 mb-6">
+          <div className="bg-[#316BF2] h-2 rounded-full transition-all duration-500" style={{ width: `${project.completion_pct}%` }} />
+        </div>
+        <div className="space-y-3">
+          {SECTIONS.map((section, i) => (
+            <SectionAccordion
+              key={section.id}
+              section={section}
+              data={data}
+              sources={sources}
+              onChange={handleFieldChange}
+              defaultOpen={i === 0}
+            />
+          ))}
+        </div>
       </div>
-
-      <button onClick={() => router.push(`/${assoId}/historique`)} className="w-full flex items-center justify-center gap-2 py-3 bg-[#316BF2] hover:bg-[#1E54D4] text-white text-[13px] font-medium rounded-xl transition-colors">
-        <ArrowRight size={15} /> Voir l&apos;historique des projets
-      </button>
     </div>
   );
 }
