@@ -8,23 +8,24 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(
-      `https://www.data-asso.fr/api/associations/name/${encodeURIComponent(name)}`,
+      `https://recherche-entreprises.api.gouv.fr/search?q=${encodeURIComponent(name)}&per_page=8&nature_juridique=9210,9220,9230,9240,9260,9270,9300`,
       { headers: { Accept: "application/json" }, next: { revalidate: 60 } }
     );
     if (!res.ok) return NextResponse.json([], { status: 200 });
     const json = await res.json();
-    // Normalize to a consistent shape regardless of exact API response structure
-    const results = (Array.isArray(json) ? json : json.associations ?? json.results ?? [])
-      .slice(0, 8)
-      .map((a: Record<string, string>) => ({
-        nom: a.titre ?? a.nom ?? a.name ?? "",
-        siren: a.siren ?? a.numero_siren ?? null,
-        rna: a.id_association ?? a.numero_rna ?? a.rna ?? null,
-        siret: a.siret ?? null,
-        commune: a.commune ?? a.ville ?? null,
-        code_postal: a.code_postal ?? null,
-      }))
-      .filter((a: { nom: string }) => a.nom);
+
+    const results = (json.results ?? []).map((a: {
+      siren: string;
+      nom_complet: string;
+      siege?: { siret?: string; code_postal?: string; libelle_commune?: string };
+    }) => ({
+      nom: a.nom_complet,
+      siren: a.siren,
+      rna: null,
+      siret: a.siege?.siret ?? null,
+      commune: a.siege?.libelle_commune ?? null,
+      code_postal: a.siege?.code_postal ?? null,
+    }));
 
     return NextResponse.json(results);
   } catch {

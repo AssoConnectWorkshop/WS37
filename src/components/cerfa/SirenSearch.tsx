@@ -127,7 +127,7 @@ export function SirenSearch({ onData }: Props) {
     debounceRef.current = setTimeout(async () => {
       setSuggestLoading(true);
       try {
-        const res = await fetch(`/api/cerfa/search?q=${encodeURIComponent(trimmed)}`);
+        const res = await fetch(`/api/cerfa/asso-name?q=${encodeURIComponent(trimmed)}`);
         const list: Suggestion[] = await res.json();
         setSuggestions(list);
         setShowDropdown(list.length > 0);
