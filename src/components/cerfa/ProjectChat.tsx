@@ -83,7 +83,7 @@ export function ProjectChat({ data, onFillFields }: Props) {
   return (
     <div className="flex flex-col h-[420px]">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && loading && (
           <div className="flex items-center gap-2 text-[#6B7280]">
             <Loader2 size={15} className="animate-spin text-[#316BF2]" />
