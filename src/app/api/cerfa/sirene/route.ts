@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
         ? [representant.prenom, representant.nom].filter(Boolean).join(" ")
         : null,
       representant_qualite: representant?.qualite ?? null,
+      date_mise_a_jour: siege.date_mise_a_jour ?? result.date_mise_a_jour ?? null,
     });
   } catch (err) {
     console.error("Sirene API error:", err);

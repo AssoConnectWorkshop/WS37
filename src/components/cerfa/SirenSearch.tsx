@@ -16,6 +16,7 @@ interface SireneResult {
   departement: string;
   representant_nom: string | null;
   representant_qualite: string | null;
+  date_mise_a_jour: string | null;
 }
 
 interface RnaResult {
@@ -23,6 +24,10 @@ interface RnaResult {
   objet: string | null;
   date_creation: string | null;
   agrement: string | null;
+  siege_adresse: string | null;
+  siege_cp: string | null;
+  siege_commune: string | null;
+  date_mise_a_jour: string | null;
 }
 
 interface AssoSuggestion {
@@ -132,15 +137,25 @@ export function SirenSearch({ onData }: Props) {
       setSirenResult(sireneRes);
       const rna: RnaResult = rnaRes;
 
+      // For fields present in both sources, pick the most recently updated one.
+      // RNA date_mise_a_jour wins on tie-break since it's association-specific.
+      const sireneDate = sireneRes.date_mise_a_jour ? new Date(sireneRes.date_mise_a_jour).getTime() : 0;
+      const rnaDate = rna.date_mise_a_jour ? new Date(rna.date_mise_a_jour).getTime() : 0;
+      const rnaWins = rnaDate >= sireneDate;
+
+      const adresse = rnaWins && rna.siege_adresse ? rna.siege_adresse : (sireneRes.adresse || rna.siege_adresse);
+      const code_postal = rnaWins && rna.siege_cp ? rna.siege_cp : (sireneRes.code_postal || rna.siege_cp);
+      const commune = rnaWins && rna.siege_commune ? rna.siege_commune : (sireneRes.commune || rna.siege_commune);
+
       const data: Partial<CerfaData> = {
         s1_siren: sireneRes.siren,
         s1_siret: sireneRes.siret_siege,
         s1_raison_sociale: sireneRes.raison_sociale,
         s1_forme_juridique: sireneRes.forme_juridique,
         s1_code_ape: sireneRes.code_ape,
-        s1_adresse: sireneRes.adresse,
-        s1_code_postal: sireneRes.code_postal,
-        s1_commune: sireneRes.commune,
+        ...(adresse && { s1_adresse: adresse }),
+        ...(code_postal && { s1_code_postal: code_postal }),
+        ...(commune && { s1_commune: commune }),
         ...(sireneRes.representant_nom && { s1_representant_nom: sireneRes.representant_nom }),
         ...(sireneRes.representant_qualite && { s1_representant_qualite: sireneRes.representant_qualite }),
         ...(rna.rna && { s1_rna: rna.rna }),
