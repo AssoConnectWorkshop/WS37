@@ -6,6 +6,7 @@ import { AlertCircle, Loader2, Save } from "lucide-react";
 import type { CerfaData, CerfaProject, FieldSource } from "@/components/cerfa/types";
 import { SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
+import { ProjectChat } from "@/components/cerfa/ProjectChat";
 import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
 
 function CircularProgress({ pct }: { pct: number }) {
@@ -163,6 +164,16 @@ function EnCours() {
           <p className="text-[12px] text-[#6B7280] mt-0.5">Notes de présentation, dossiers, descriptifs d&apos;actions… → section 6</p>
         </div>
         <div className="p-6"><DocumentUpload context="projet" onExtracted={mergeAndSave} /></div>
+      </div>
+
+      <div className="bg-white border border-[#316BF2]/20 rounded-xl overflow-hidden"
+        style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+        <div className="px-6 py-4 border-b border-[#E5E9F2] bg-[#EEF3FE] flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-[#316BF2] animate-pulse" />
+          <h2 className="text-[14px] font-semibold text-[#316BF2]">Assistant — Compléter le dossier</h2>
+          <span className="ml-auto text-[12px] text-[#6B7280]">{project.completion_pct}% complété</span>
+        </div>
+        <ProjectChat data={data} onFillFields={mergeAndSave} />
       </div>
 
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
