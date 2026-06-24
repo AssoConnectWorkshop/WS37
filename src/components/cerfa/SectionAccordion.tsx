@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Circle } from "lucide-react";
+import { ChevronDown, ChevronUp, CheckCircle2, AlertCircle, Circle, Sparkles, Loader2 } from "lucide-react";
 import type { CerfaData, FieldSource, SectionMeta } from "./types";
 import { SourceBadge } from "./SourceBadge";
 
@@ -11,6 +11,7 @@ interface Props {
   sources: Partial<Record<keyof CerfaData, FieldSource>>;
   onChange: (key: keyof CerfaData, value: string) => void;
   defaultOpen?: boolean;
+  onSuggest?: (key: keyof CerfaData, fieldLabel: string, sectionTitle: string) => Promise<void>;
 }
 
 function sectionStatus(section: SectionMeta, data: CerfaData): "complete" | "partial" | "empty" {
@@ -21,8 +22,19 @@ function sectionStatus(section: SectionMeta, data: CerfaData): "complete" | "par
   return "partial";
 }
 
-export function SectionAccordion({ section, data, sources, onChange, defaultOpen = false }: Props) {
+export function SectionAccordion({ section, data, sources, onChange, defaultOpen = false, onSuggest }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const [suggesting, setSuggesting] = useState<string | null>(null);
+
+  const handleSuggest = async (key: keyof CerfaData, fieldLabel: string) => {
+    if (!onSuggest) return;
+    setSuggesting(String(key));
+    try {
+      await onSuggest(key, fieldLabel, section.title);
+    } finally {
+      setSuggesting(null);
+    }
+  };
   const status = sectionStatus(section, data);
 
   const StatusIcon = status === "complete"
@@ -69,6 +81,20 @@ export function SectionAccordion({ section, data, sources, onChange, defaultOpen
                 <div className="flex items-center gap-2 mb-1">
                   <label className="text-[13px] font-medium text-[#1A1A2E]">{field.label}</label>
                   {source && <SourceBadge source={source} />}
+                  {field.type === "textarea" && onSuggest && (
+                    <button
+                      type="button"
+                      onClick={() => handleSuggest(field.key, field.label)}
+                      disabled={suggesting === String(field.key)}
+                      className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-[#316BF2] bg-[#EEF3FE] hover:bg-[#DCE8FD] disabled:opacity-60 transition-colors"
+                    >
+                      {suggesting === String(field.key) ? (
+                        <><Loader2 size={11} className="animate-spin" /> Génération…</>
+                      ) : (
+                        <><Sparkles size={11} /> Suggérer</>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {field.type === "textarea" ? (
