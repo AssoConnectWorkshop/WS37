@@ -1,124 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 
-type DocType =
-  | "bilan_comptable"
-  | "compte_resultat"
-  | "cr_ag"
-  | "statuts"
-  | "rapport_activite"
-  | "presentation_projet"
-  | "inconnu";
+const anthropic = new Anthropic();
 
-function detectDocType(text: string): DocType {
-  const score = (patterns: RegExp[]) => patterns.filter((p) => p.test(text)).length;
-  const scores: Record<DocType, number> = {
-    bilan_comptable: score([/bilan/i, /actif/i, /passif/i, /immobilis/i, /capitaux propres/i, /dettes/i]),
-    compte_resultat: score([/compte de r[eé]sultat/i, /charges d.exploitation/i, /produits d.exploitation/i, /exc[eé]dent brut/i, /r[eé]sultat net/i]),
-    cr_ag: score([/assembl[eé]e g[eé]n[eé]rale/i, /proc[eè]s.verbal/i, /\bpv\b/i, /ordre du jour/i, /membres pr[eé]sents/i, /quorum/i]),
-    statuts: score([/statuts/i, /association r[eé]gie par/i, /loi du 1er juill/i, /objet social/i, /si[eè]ge social/i, /article \d+/i]),
-    rapport_activite: score([/rapport d.activit/i, /bilan d.activit/i, /actions men[eé]es/i, /b[eé]n[eé]voles/i, /r[eé]alisations/i]),
-    presentation_projet: score([/pr[eé]sentation de projet/i, /note de pr[eé]sentation/i, /objectifs/i, /public cible/i, /b[eé]n[eé]ficiaires/i, /actions pr[eé]vues/i]),
-    inconnu: 0,
-  };
-  const best = (Object.entries(scores) as [DocType, number][]).filter(([k]) => k !== "inconnu").sort((a, b) => b[1] - a[1])[0];
-  return best[1] >= 2 ? best[0] : "inconnu";
-}
+const EXTRACTION_PROMPT = `Tu analyses un document d'une association française pour extraire des informations destinées au formulaire Cerfa 12156*06 de demande de subvention.
 
-function extractField(text: string, patterns: RegExp[]): string | null {
-  for (const pat of patterns) {
-    const m = text.match(pat);
-    if (m?.[1]) return m[1].trim().replace(/\s+/g, " ").slice(0, 500);
-  }
-  return null;
-}
+Extrais uniquement les informations explicitement présentes dans le document et retourne un JSON avec les champs suivants (n'inclus que ceux trouvés) :
 
-function extractAmount(text: string, patterns: RegExp[]): string | null {
-  for (const pat of patterns) {
-    const m = text.match(pat);
-    if (m?.[1]) return m[1].replace(/[\s ]/g, "").replace(",", ".");
-  }
-  return null;
-}
+Champs projet (section 6) :
+- s6_titre : intitulé / titre du projet
+- s6_objectif : objectif général du projet (texte)
+- s6_description : description des actions prévues (texte)
+- s6_public_cible : public cible / bénéficiaires (texte)
+- s6_territoire : territoire d'intervention (texte court)
+- s6_periode_debut : date de début au format JJ/MM/AAAA
+- s6_periode_fin : date de fin au format JJ/MM/AAAA
+- s6_budget_depenses : budget total dépenses en chiffres seuls (ex: 15000)
+- s6_budget_recettes : total recettes en chiffres seuls
+- s6_budget_subvention : montant subvention demandée en chiffres seuls
+- s6_indicateurs : indicateurs d'évaluation (texte)
 
-function extractSection(text: string, keywords: string[]): string | null {
-  for (const kw of keywords) {
-    const re = new RegExp(`(?:${kw})[^:]*:?\\s*([^\\n]{15,400})`, "i");
-    const m = text.match(re);
-    if (m?.[1]) return m[1].trim();
-  }
-  return null;
-}
+Champs association (si présents) :
+- s1_raison_sociale : nom de l'association
+- s1_objet_social : objet social (texte)
+- s1_adresse : adresse du siège
+- s1_code_postal : code postal (5 chiffres)
+- s1_commune : ville
+- s1_representant_nom : nom et prénom du représentant légal
+- s4_benevoles : nombre de bénévoles (chiffre seul)
+- s4_salaries_etpt : nombre de salariés ETPT (chiffre seul)
 
-type Extracted = Record<string, string | null>;
-
-function extractBilan(text: string): Extracted {
-  return {
-    s5_total_produits: extractAmount(text, [/total actif[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_total_charges: extractAmount(text, [/total passif[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_resultat: extractAmount(text, [/r[eé]sultat[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /exc[eé]dent[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-  };
-}
-
-function extractCompteResultat(text: string): Extracted {
-  return {
-    s5_charges_personnel: extractAmount(text, [/charges? de personnel[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /salaires et charges[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_charges_fonctionnement: extractAmount(text, [/autres charges[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /charges d.exploitation[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_charges_exceptionnelles: extractAmount(text, [/charges exceptionnelles[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_total_charges: extractAmount(text, [/total des charges[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /total charges[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_cotisations: extractAmount(text, [/cotisations[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_dons: extractAmount(text, [/dons[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /m[eé]c[eé]nat[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_subventions_publiques: extractAmount(text, [/subventions d.exploitation[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /subventions publiques[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_prestations: extractAmount(text, [/prestations de services[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_total_produits: extractAmount(text, [/total des produits[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /total produits[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s5_resultat: extractAmount(text, [/r[eé]sultat net[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /exc[eé]dent[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-  };
-}
-
-function extractCrAg(text: string): Extracted {
-  return {
-    s1_representant_nom: extractField(text, [
-      /pr[eé]sident(?:e)?[\s:]+([A-ZÀ-Ÿ][a-zà-ÿ]+(?: [A-ZÀ-Ÿ][a-zà-ÿ]+)+)/,
-      /[eé]lu(?:e)? pr[eé]sident(?:e)?[\s:]+([A-ZÀ-Ÿ][a-zà-ÿ]+(?: [A-ZÀ-Ÿ][a-zà-ÿ]+)+)/i,
-    ]),
-    s1_representant_qualite: "Président(e)",
-    s4_benevoles: extractField(text, [/(\d+)\s*b[eé]n[eé]voles?/i, /(\d+)\s*adh[eé]rents?/i, /(\d+)\s*membres? pr[eé]sents?/i]),
-  };
-}
-
-function extractStatuts(text: string): Extracted {
-  return {
-    s1_objet_social: extractSection(text, ["objet(?: de l.association)?", "but"]),
-    s1_adresse: extractField(text, [/si[eè]ge social[^:]*:?\s*([^\n]{5,150})/i]),
-    s1_forme_juridique: "Association loi 1901",
-  };
-}
-
-function extractRapportActivite(text: string): Extracted {
-  return {
-    s4_salaries_etpt: extractField(text, [/(\d+(?:,\d+)?)\s*(?:ETPT|ETP)/i, /(\d+)\s*salari[eé]s?/i]),
-    s4_benevoles: extractField(text, [/(\d+)\s*b[eé]n[eé]voles?/i]),
-    s4_volontaires: extractField(text, [/(\d+)\s*volontaires?/i, /(\d+)\s*service civique/i]),
-    s6_description: extractSection(text, ["actions men[eé]es", "r[eé]alisations", "activit[eé]s"]),
-    s6_public_cible: extractSection(text, ["b[eé]n[eé]ficiaires", "public touch[eé]", "personnes aid[eé]es"]),
-  };
-}
-
-function extractPresentationProjet(text: string): Extracted {
-  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const dates = [...text.matchAll(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/g)].map((m) => m[1]);
-  return {
-    s6_titre: extractField(text, [/(?:projet|intitul[eé]|titre)[^:]*:?\s*([^\n]{5,120})/i, /^#{1,3}\s+(.{5,120})$/m]) ?? lines.slice(0, 3).join(" ").slice(0, 120),
-    s6_objectif: extractSection(text, ["objectif(?: g[eé]n[eé]ral)?", "finalit[eé]", "but du projet"]),
-    s6_description: extractSection(text, ["actions? pr[eé]vue?s?", "d[eé]roulement", "programme", "activit[eé]s"]),
-    s6_public_cible: extractSection(text, ["b[eé]n[eé]ficiaires", "public cible", "destinataires"]),
-    s6_territoire: extractSection(text, ["territoire", "zone d.intervention", "p[eé]rim[eè]tre"]),
-    s6_indicateurs: extractSection(text, ["indicateurs?", "[eé]valuation", "mesure du succ[eè]s"]),
-    s6_periode_debut: dates[0] ?? null,
-    s6_periode_fin: dates[dates.length - 1] ?? null,
-    s6_budget_depenses: extractAmount(text, [/budget[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /co[uû]t total[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-    s6_budget_subvention: extractAmount(text, [/subvention[^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i, /montant demand[eé][^€\n]*?(\d[\d\s ]*(?:[,\.]\d{2})?)\s*€/i]),
-  };
-}
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown, sans explication, sans balises. Exemple : {"s6_titre":"Mon projet","s6_objectif":"..."}`;
 
 export async function POST(req: NextRequest) {
   const form = await req.formData();
@@ -126,32 +38,84 @@ export async function POST(req: NextRequest) {
   if (!file) return NextResponse.json({ error: "Aucun fichier fourni" }, { status: 400 });
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  let text = "";
+  const isPdf = file.name.toLowerCase().endsWith(".pdf");
+  const isDocx = file.name.toLowerCase().endsWith(".docx");
+
+  if (!isPdf && !isDocx) {
+    return NextResponse.json({ error: "Format non supporté (.pdf ou .docx uniquement)" }, { status: 400 });
+  }
 
   try {
-    if (file.name.toLowerCase().endsWith(".docx")) {
-      const mammoth = await import("mammoth");
-      const result = await mammoth.extractRawText({ buffer });
-      text = result.value;
-    } else if (file.name.toLowerCase().endsWith(".pdf")) {
-      text = buffer.toString("latin1").replace(/[^\x20-\x7E\xC0-\xFF\n\r]/g, " ").replace(/\s{3,}/g, "\n").slice(0, 80000);
+    let extracted: Record<string, string> = {};
+
+    if (isPdf) {
+      const pdfContent: Anthropic.MessageParam = {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: buffer.toString("base64"),
+            },
+          } as Anthropic.DocumentBlockParam,
+          { type: "text", text: EXTRACTION_PROMPT },
+        ],
+      };
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [pdfContent],
+      });
+
+      const text = message.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as { type: "text"; text: string }).text)
+        .join("").trim();
+
+      try {
+        extracted = JSON.parse(text);
+      } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) extracted = JSON.parse(match[0]);
+      }
     } else {
-      return NextResponse.json({ error: "Format non supporté (.pdf ou .docx uniquement)" }, { status: 400 });
+      const mammoth = await import("mammoth");
+      const { value: docText } = await mammoth.extractRawText({ buffer });
+
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: `${EXTRACTION_PROMPT}\n\nDocument :\n${docText.slice(0, 60000)}`,
+        }],
+      });
+
+      const text = message.content
+        .filter((b) => b.type === "text")
+        .map((b) => (b as { type: "text"; text: string }).text)
+        .join("").trim();
+
+      try {
+        extracted = JSON.parse(text);
+      } catch {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) extracted = JSON.parse(match[0]);
+      }
     }
 
-    const docType = detectDocType(text);
-    let extracted: Extracted = {};
-    switch (docType) {
-      case "bilan_comptable":   extracted = extractBilan(text); break;
-      case "compte_resultat":   extracted = extractCompteResultat(text); break;
-      case "cr_ag":             extracted = extractCrAg(text); break;
-      case "statuts":           extracted = extractStatuts(text); break;
-      case "rapport_activite":  extracted = extractRapportActivite(text); break;
-      default:                  extracted = extractPresentationProjet(text); break;
-    }
+    const clean = Object.fromEntries(
+      Object.entries(extracted).filter(([, v]) => v !== null && v !== "" && v !== undefined)
+    );
 
-    const clean = Object.fromEntries(Object.entries(extracted).filter(([, v]) => v !== null && v !== ""));
-    return NextResponse.json({ docType, extracted: clean, charCount: text.length, fieldsFound: Object.keys(clean).length });
+    const docType = clean.s6_titre || clean.s6_objectif ? "presentation_projet"
+      : clean.s5_total_charges ? "bilan_comptable"
+      : clean.s1_objet_social ? "statuts"
+      : "inconnu";
+
+    return NextResponse.json({ docType, extracted: clean, fieldsFound: Object.keys(clean).length });
   } catch (err) {
     console.error("Parse error:", err);
     return NextResponse.json({ error: "Erreur lors de l'analyse du document" }, { status: 500 });
