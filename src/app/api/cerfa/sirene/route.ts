@@ -20,11 +20,7 @@ export async function GET(req: NextRequest) {
 
     const siege = result.siege ?? {};
     const dirigeants = result.dirigeants ?? [];
-    const asso = result.association ?? {};
     const complements = result.complements ?? {};
-    console.log("[sirene] complements:", JSON.stringify(complements));
-    console.log("[sirene] asso:", JSON.stringify(asso));
-    console.log("[sirene] sigle:", result.sigle);
     const representant = dirigeants.find((d: { qualite?: string }) =>
       ["Président", "Directeur", "Gérant"].some((q) => d.qualite?.includes(q))
     ) ?? dirigeants[0];
@@ -33,7 +29,7 @@ export async function GET(req: NextRequest) {
       siren: result.siren,
       siret_siege: siege.siret,
       raison_sociale: result.nom_complet,
-      sigle: asso.sigle ?? result.sigle ?? null,
+      sigle: result.sigle ?? null,
       forme_juridique: result.nature_juridique,
       code_ape: siege.activite_principale,
       adresse: [siege.numero_voie, siege.type_voie, siege.libelle_voie].filter(Boolean).join(" "),
@@ -45,14 +41,7 @@ export async function GET(req: NextRequest) {
         : null,
       representant_qualite: representant?.qualite ?? null,
       date_mise_a_jour: siege.date_mise_a_jour ?? result.date_mise_a_jour ?? null,
-      // Champs spécifiques associations via minimal=false
-      rna: asso.id_association ?? null,
-      objet_social: asso.objet ?? null,
-      date_creation: asso.date_creation ?? null,
-      telephone: asso.telephone ?? null,
-      email: asso.email ?? null,
-      site_web: asso.site_web ?? null,
-      agrement: asso.agrement?.[0]?.type ?? null,
+      rna: complements.identifiant_association ?? null,
     });
   } catch (err) {
     console.error("Sirene API error:", err);

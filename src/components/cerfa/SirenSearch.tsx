@@ -19,12 +19,6 @@ interface SireneResult {
   representant_qualite: string | null;
   date_mise_a_jour: string | null;
   rna: string | null;
-  objet_social: string | null;
-  date_creation: string | null;
-  telephone: string | null;
-  email: string | null;
-  site_web: string | null;
-  agrement: string | null;
 }
 
 interface RnaResult {
@@ -155,11 +149,8 @@ export function SirenSearch({ onData }: Props) {
       const code_postal = rnaWins && rna.siege_cp ? rna.siege_cp : (sireneRes.code_postal || rna.siege_cp);
       const commune = rnaWins && rna.siege_commune ? rna.siege_commune : (sireneRes.commune || rna.siege_commune);
 
-      // RNA: sireneRes contient déjà le RNA via minimal=false, RNA route en fallback
+      // RNA : SIRENE fournit l'identifiant via complements.identifiant_association, RNA route en fallback
       const rnaNum = sireneRes.rna || rna.rna;
-      const objetSocial = sireneRes.objet_social || rna.objet;
-      const dateCreation = sireneRes.date_creation || rna.date_creation;
-      const agrement = sireneRes.agrement || rna.agrement;
 
       const data: Partial<CerfaData> = {
         s1_siren: sireneRes.siren,
@@ -174,12 +165,9 @@ export function SirenSearch({ onData }: Props) {
         ...(sireneRes.representant_nom && { s1_representant_nom: sireneRes.representant_nom }),
         ...(sireneRes.representant_qualite && { s1_representant_qualite: sireneRes.representant_qualite }),
         ...(rnaNum && { s1_rna: rnaNum }),
-        ...(objetSocial && { s1_objet_social: objetSocial }),
-        ...(dateCreation && { s1_date_creation: dateCreation }),
-        ...(sireneRes.telephone && { s1_tel: sireneRes.telephone }),
-        ...(sireneRes.email && { s1_email: sireneRes.email }),
-        ...(sireneRes.site_web && { s1_site_web: sireneRes.site_web }),
-        ...(agrement && { s2_agrement_type: agrement }),
+        ...(rna.objet && { s1_objet_social: rna.objet }),
+        ...(rna.date_creation && { s1_date_creation: rna.date_creation }),
+        ...(rna.agrement && { s2_agrement_type: rna.agrement }),
       };
 
       const sources: Partial<Record<keyof CerfaData, FieldSource>> = {};
