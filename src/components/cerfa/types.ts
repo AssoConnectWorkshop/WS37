@@ -80,10 +80,19 @@ export interface CerfaData {
   s7_financeur?: string;
 }
 
+export interface CerfaAssociation {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  nom: string;
+  data: CerfaData;
+}
+
 export interface CerfaProject {
   id: string;
   created_at: string;
   updated_at: string;
+  association_id: string | null;
   nom_projet: string;
   nom_association: string | null;
   siren: string | null;

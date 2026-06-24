@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Download, Copy, Loader2, AlertCircle, Filter } from "lucide-react";
 import type { CerfaProject } from "@/components/cerfa/types";
 
@@ -19,24 +19,26 @@ function StatusBadge({ statut }: { statut: string }) {
 
 export default function Historique() {
   const router = useRouter();
+  const { assoId } = useParams<{ assoId: string }>();
   const [projects, setProjects] = useState<CerfaProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatut, setFilterStatut] = useState<string>("tous");
 
   useEffect(() => {
-    fetch("/api/cerfa/projects")
+    fetch(`/api/cerfa/projects?association_id=${assoId}`)
       .then((r) => r.json())
       .then((data) => setProjects(Array.isArray(data) ? data : []))
       .catch(() => setProjects([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [assoId]);
 
   const duplicate = async (p: CerfaProject) => {
     const res = await fetch("/api/cerfa/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        association_id: assoId,
         nom_projet: `${p.nom_projet} (copie)`,
         nom_association: p.nom_association,
         siren: p.siren,
@@ -46,16 +48,13 @@ export default function Historique() {
       }),
     });
     const newP = await res.json();
-    if (res.ok) {
-      setProjects((prev) => [newP, ...prev]);
-    }
+    if (res.ok) setProjects((prev) => [newP, ...prev]);
   };
 
   const filtered = projects.filter((p) => {
-    const matchSearch =
-      !search ||
-      p.nom_projet?.toLowerCase().includes(search.toLowerCase()) ||
-      p.nom_association?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search
+      || p.nom_projet?.toLowerCase().includes(search.toLowerCase())
+      || p.nom_association?.toLowerCase().includes(search.toLowerCase());
     const matchStatut = filterStatut === "tous" || p.statut === filterStatut;
     return matchSearch && matchStatut;
   });
@@ -67,7 +66,6 @@ export default function Historique() {
         <p className="text-[13px] text-[#6B7280] mt-1">Tous vos dossiers Cerfa enregistrés</p>
       </div>
 
-      {/* Filters */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 flex-1 border border-[#E5E9F2] rounded-lg px-3 py-2.5 bg-white">
           <Filter size={14} className="text-[#6B7280]" />
@@ -75,7 +73,7 @@ export default function Historique() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher par projet ou association…"
+            placeholder="Rechercher par projet…"
             className="flex-1 text-[13px] text-[#1A1A2E] outline-none bg-transparent"
           />
         </div>
@@ -102,7 +100,7 @@ export default function Historique() {
           </p>
           {projects.length === 0 && (
             <button
-              onClick={() => router.push("/cerfa/nouveau")}
+              onClick={() => router.push(`/${assoId}/nouveau`)}
               className="px-6 py-2.5 bg-[#316BF2] text-white text-[13px] font-medium rounded-lg hover:bg-[#1E54D4]"
             >
               Créer un premier projet
@@ -112,8 +110,7 @@ export default function Historique() {
       ) : (
         <div className="space-y-3">
           {filtered.map((p) => (
-            <div
-              key={p.id}
+            <div key={p.id}
               className="bg-white border border-[#E5E9F2] rounded-xl p-5 flex flex-col md:flex-row md:items-center gap-4 hover:border-[#316BF2]/30 transition-colors"
               style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.06)" }}
             >
@@ -122,9 +119,6 @@ export default function Historique() {
                   <p className="text-[14px] font-semibold text-[#1A1A2E] truncate">{p.nom_projet}</p>
                   <StatusBadge statut={p.statut} />
                 </div>
-                {p.nom_association && (
-                  <p className="text-[13px] text-[#316BF2] font-medium">{p.nom_association}</p>
-                )}
                 <div className="flex items-center gap-3 text-[12px] text-[#6B7280] flex-wrap">
                   {p.financeur && <span>Financeur : {p.financeur}</span>}
                   <span>·</span>
@@ -133,10 +127,9 @@ export default function Historique() {
                   <span className="text-[#316BF2] font-medium">{p.completion_pct}% complété</span>
                 </div>
               </div>
-
               <div className="flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => router.push(`/cerfa/en-cours?id=${p.id}`)}
+                  onClick={() => router.push(`/${assoId}/en-cours?id=${p.id}`)}
                   className="flex items-center gap-1.5 px-3 py-2 border border-[#316BF2] text-[#316BF2] text-[12px] font-medium rounded-lg hover:bg-[#EEF3FE] transition-colors"
                 >
                   <Download size={13} /> Ouvrir

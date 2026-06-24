@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from "react";
+import { useParams } from "next/navigation";
 import { Save, Loader2, CheckCircle2 } from "lucide-react";
 import { SirenSearch } from "@/components/cerfa/SirenSearch";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
@@ -9,6 +10,8 @@ import type { CerfaData, FieldSource } from "@/components/cerfa/types";
 import { ASSOCIATION_SECTIONS } from "@/components/cerfa/sections";
 
 export default function MonAssociation() {
+  const { assoId } = useParams<{ assoId: string }>();
+  const [nom, setNom] = useState("");
   const [data, setData] = useState<CerfaData>({});
   const [sources, setSources] = useState<Partial<Record<keyof CerfaData, FieldSource>>>({});
   const [saving, setSaving] = useState(false);
@@ -16,13 +19,14 @@ export default function MonAssociation() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/cerfa/association")
+    fetch(`/api/cerfa/associations/${assoId}`)
       .then((r) => r.json())
       .then((d) => {
+        if (d.nom) setNom(d.nom);
         if (d.data) setData(d.data);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [assoId]);
 
   const mergeData = useCallback(
     (newData: Partial<CerfaData>, newSources: Partial<Record<keyof CerfaData, FieldSource>>) => {
@@ -41,10 +45,10 @@ export default function MonAssociation() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await fetch("/api/cerfa/association", {
+      const res = await fetch(`/api/cerfa/associations/${assoId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data }),
+        body: JSON.stringify({ nom, data }),
       });
       if (!res.ok) throw new Error("Erreur serveur");
       setSaved(true);
@@ -70,28 +74,42 @@ export default function MonAssociation() {
       <div>
         <h1 className="text-[22px] font-bold text-[#1A1A2E]">Mon association</h1>
         <p className="text-[13px] text-[#6B7280] mt-1">
-          Ces informations sont partagées entre tous vos projets. Remplissez-les une seule fois.
+          Ces informations sont partagées entre tous les projets de cette association.
         </p>
       </div>
 
-      {/* SIREN Search */}
-      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
+        style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+        <label className="text-[13px] font-semibold text-[#1A1A2E] block mb-1.5">
+          Nom de l&apos;association
+        </label>
+        <input
+          type="text"
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          placeholder="Ex : Les Restos du Cœur Paris"
+          className="w-full border border-[#E5E9F2] rounded-lg px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-[#316BF2]/30 focus:border-[#316BF2]"
+        />
+      </div>
+
+      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
+        style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">
           1. Identification automatique via SIREN / SIRET
         </h2>
         <SirenSearch onData={mergeData} />
       </div>
 
-      {/* Document Upload */}
-      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
+        style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">
           2. Import du document de présentation
         </h2>
         <DocumentUpload context="association" onExtracted={mergeData} />
       </div>
 
-      {/* Association sections */}
-      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"
+        style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-6">3. Informations de l&apos;association</h2>
         <div className="space-y-3">
           {ASSOCIATION_SECTIONS.map((section, i) => (
@@ -107,7 +125,6 @@ export default function MonAssociation() {
         </div>
       </div>
 
-      {/* Save button */}
       <div className="pb-8">
         <button
           type="button"
