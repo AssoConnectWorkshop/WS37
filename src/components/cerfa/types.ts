@@ -1,5 +1,12 @@
 export type FieldSource = "insee" | "document" | "manuel";
 
+export interface UploadedDoc {
+  name: string;
+  docType: string;
+  fieldsFound: number;
+  uploadedAt: string;
+}
+
 export interface CerfaData {
   // Section 0 — Nature de la demande
   s0_forme_demande?: string;
@@ -78,6 +85,10 @@ export interface CerfaData {
   s7_aides_annee3?: string;
   s7_montant_demande?: string;
   s7_financeur?: string;
+
+  // Internal — uploaded document metadata (not Cerfa fields)
+  _docs_association?: UploadedDoc[];
+  _docs_projet?: UploadedDoc[];
 }
 
 export interface CerfaAssociation {

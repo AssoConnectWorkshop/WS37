@@ -7,7 +7,7 @@ import Link from "next/link";
 import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
 import { ProjectChat } from "@/components/cerfa/ProjectChat";
-import type { CerfaData, FieldSource } from "@/components/cerfa/types";
+import type { CerfaData, FieldSource, UploadedDoc } from "@/components/cerfa/types";
 import { PROJECT_SECTIONS, SECTIONS, ASSOCIATION_SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 
 export default function NouveauProjet() {
@@ -19,6 +19,7 @@ export default function NouveauProjet() {
   const [sources, setSources] = useState<Partial<Record<keyof CerfaData, FieldSource>>>({});
   const [nomProjet, setNomProjet] = useState("");
   const [financeur, setFinanceur] = useState("");
+  const [docsProjet, setDocsProjet] = useState<UploadedDoc[]>([]);
   const [saving, setSaving] = useState(false);
   const [loadingAssoc, setLoadingAssoc] = useState(true);
   const [showUpload, setShowUpload] = useState(true);
@@ -104,6 +105,11 @@ export default function NouveauProjet() {
     },
     [mergeProjectData]
   );
+
+  const handleDocsProjetChange = useCallback((docs: UploadedDoc[]) => {
+    setDocsProjet(docs);
+    setProjectData((d) => ({ ...d, _docs_projet: docs }));
+  }, []);
 
   const skipUpload = () => {
     setShowUpload(false);
@@ -237,7 +243,7 @@ export default function NouveauProjet() {
             </button>
           </div>
           <div className="mt-4">
-            <DocumentUpload context="projet" onExtracted={handleUploadExtracted} />
+            <DocumentUpload context="projet" docs={docsProjet} onDocsChange={handleDocsProjetChange} onExtracted={handleUploadExtracted} />
           </div>
         </div>
       )}

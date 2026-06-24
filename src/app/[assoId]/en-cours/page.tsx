@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { AlertCircle, Loader2, Save } from "lucide-react";
-import type { CerfaData, CerfaProject, FieldSource } from "@/components/cerfa/types";
+import type { CerfaData, CerfaProject, FieldSource, UploadedDoc } from "@/components/cerfa/types";
 import { SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
 import { ProjectChat } from "@/components/cerfa/ProjectChat";
@@ -32,6 +32,8 @@ function EnCours() {
   const { assoId } = useParams<{ assoId: string }>();
   const [project, setProject] = useState<CerfaProject | null>(null);
   const [sources, setSources] = useState<Partial<Record<keyof CerfaData, FieldSource>>>({});
+  const [docsAssoc, setDocsAssoc] = useState<UploadedDoc[]>([]);
+  const [docsProjet, setDocsProjet] = useState<UploadedDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -41,15 +43,23 @@ function EnCours() {
     const id = searchParams.get("id");
     const load = async () => {
       try {
+        const initDocs = (p: CerfaProject) => {
+          const d = p.data as CerfaData;
+          if (Array.isArray(d._docs_association)) setDocsAssoc(d._docs_association);
+          if (Array.isArray(d._docs_projet)) setDocsProjet(d._docs_projet);
+        };
         if (id) {
           const res = await fetch(`/api/cerfa/projects/${id}`);
           const p = await res.json();
-          if (res.ok) { setProject(p); return; }
+          if (res.ok) { setProject(p); initDocs(p); return; }
         }
         const res = await fetch(`/api/cerfa/projects?association_id=${assoId}`);
         const list = await res.json();
         if (Array.isArray(list) && list.length > 0) {
-          setProject(list.find((p: CerfaProject) => p.statut === "en_cours") ?? list[0]);
+          const p = list.find((p: CerfaProject) => p.statut === "en_cours") ?? list[0];
+          setProject(p);
+          initDocs(p);
+          return;
         } else {
           setError("Aucun projet en cours. Créez un nouveau projet.");
         }
@@ -103,6 +113,24 @@ function EnCours() {
     [project, persistProject]
   );
 
+  const handleDocsAssocChange = useCallback((docs: UploadedDoc[]) => {
+    setDocsAssoc(docs);
+    if (!project) return;
+    const newData = { ...(project.data as CerfaData), _docs_association: docs };
+    const updated = { ...project, data: newData };
+    setProject(updated);
+    persistProject(updated);
+  }, [project, persistProject]);
+
+  const handleDocsProjetChange = useCallback((docs: UploadedDoc[]) => {
+    setDocsProjet(docs);
+    if (!project) return;
+    const newData = { ...(project.data as CerfaData), _docs_projet: docs };
+    const updated = { ...project, data: newData };
+    setProject(updated);
+    persistProject(updated);
+  }, [project, persistProject]);
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 size={32} className="animate-spin text-[#316BF2]" /></div>;
 
   if (error || !project) {
@@ -155,7 +183,7 @@ function EnCours() {
           <h2 className="text-[14px] font-semibold text-[#1A1A2E]">Mon Association — Import du document de présentation</h2>
           <p className="text-[12px] text-[#6B7280] mt-0.5">Bilans, comptes de résultat, CR d&apos;AG, statuts… → sections 1 à 5</p>
         </div>
-        <div className="p-6"><DocumentUpload context="association" onExtracted={mergeAndSave} /></div>
+        <div className="p-6"><DocumentUpload context="association" docs={docsAssoc} onDocsChange={handleDocsAssocChange} onExtracted={mergeAndSave} /></div>
       </div>
 
       <div className="bg-white border border-[#E5E9F2] rounded-xl overflow-hidden" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
@@ -163,7 +191,7 @@ function EnCours() {
           <h2 className="text-[14px] font-semibold text-[#1A1A2E]">Mon Projet — Import du document de présentation</h2>
           <p className="text-[12px] text-[#6B7280] mt-0.5">Notes de présentation, dossiers, descriptifs d&apos;actions… → section 6</p>
         </div>
-        <div className="p-6"><DocumentUpload context="projet" onExtracted={mergeAndSave} /></div>
+        <div className="p-6"><DocumentUpload context="projet" docs={docsProjet} onDocsChange={handleDocsProjetChange} onExtracted={mergeAndSave} /></div>
       </div>
 
       <div className="bg-white border border-[#316BF2]/20 rounded-xl overflow-hidden"

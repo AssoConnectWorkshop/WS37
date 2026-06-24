@@ -6,7 +6,7 @@ import { Save, Loader2, CheckCircle2 } from "lucide-react";
 import { SirenSearch } from "@/components/cerfa/SirenSearch";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
 import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
-import type { CerfaData, FieldSource } from "@/components/cerfa/types";
+import type { CerfaData, FieldSource, UploadedDoc } from "@/components/cerfa/types";
 import { ASSOCIATION_SECTIONS } from "@/components/cerfa/sections";
 
 export default function MonAssociation() {
@@ -14,6 +14,7 @@ export default function MonAssociation() {
   const [nom, setNom] = useState("");
   const [data, setData] = useState<CerfaData>({});
   const [sources, setSources] = useState<Partial<Record<keyof CerfaData, FieldSource>>>({});
+  const [docsAssoc, setDocsAssoc] = useState<UploadedDoc[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,10 @@ export default function MonAssociation() {
       .then((r) => r.json())
       .then((d) => {
         if (d.nom) setNom(d.nom);
-        if (d.data) setData(d.data);
+        if (d.data) {
+          setData(d.data);
+          if (Array.isArray(d.data._docs_association)) setDocsAssoc(d.data._docs_association);
+        }
       })
       .finally(() => setLoading(false));
   }, [assoId]);
@@ -35,6 +39,11 @@ export default function MonAssociation() {
     },
     []
   );
+
+  const handleDocsAssocChange = useCallback((docs: UploadedDoc[]) => {
+    setDocsAssoc(docs);
+    setData((d) => ({ ...d, _docs_association: docs }));
+  }, []);
 
   const handleFieldChange = useCallback((key: keyof CerfaData, value: string) => {
     setData((d) => ({ ...d, [key]: value }));
@@ -105,7 +114,7 @@ export default function MonAssociation() {
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">
           2. Import du document de présentation
         </h2>
-        <DocumentUpload context="association" onExtracted={mergeData} />
+        <DocumentUpload context="association" docs={docsAssoc} onDocsChange={handleDocsAssocChange} onExtracted={mergeData} />
       </div>
 
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6"

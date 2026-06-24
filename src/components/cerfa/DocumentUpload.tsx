@@ -2,19 +2,15 @@
 
 import { useRef, useState } from "react";
 import { Upload, FileText, Loader2, CheckCircle2, AlertCircle, X, ChevronDown, ChevronUp } from "lucide-react";
-import type { CerfaData, FieldSource } from "./types";
+import type { CerfaData, FieldSource, UploadedDoc } from "./types";
 
 export type UploadContext = "association" | "projet";
 
 interface Props {
   context?: UploadContext;
+  docs: UploadedDoc[];
+  onDocsChange: (docs: UploadedDoc[]) => void;
   onExtracted: (data: Partial<CerfaData>, sources: Partial<Record<keyof CerfaData, FieldSource>>) => void;
-}
-
-interface UploadedDoc {
-  name: string;
-  docType: string;
-  fieldsFound: number;
 }
 
 const DOC_TYPE_LABELS: Record<string, string> = {
@@ -69,12 +65,11 @@ const FIELD_MAPPING: Partial<Record<string, keyof CerfaData>> = {
   s6_indicateurs: "s6_indicateurs",
 };
 
-export function DocumentUpload({ context = "association", onExtracted }: Props) {
+export function DocumentUpload({ context = "association", docs, onDocsChange, onExtracted }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [docs, setDocs] = useState<UploadedDoc[]>([]);
   const [showHints, setShowHints] = useState(false);
 
   const cfg = CONTEXT_CONFIG[context];
@@ -92,7 +87,13 @@ export function DocumentUpload({ context = "association", onExtracted }: Props) 
       if (!res.ok) throw new Error(json.error ?? "Erreur inconnue");
 
       const { docType, extracted, fieldsFound } = json;
-      setDocs((prev) => [...prev, { name: file.name, docType, fieldsFound }]);
+      const newDoc: UploadedDoc = {
+        name: file.name,
+        docType,
+        fieldsFound,
+        uploadedAt: new Date().toISOString(),
+      };
+      onDocsChange([...docs, newDoc]);
 
       const data: Partial<CerfaData> = {};
       const sources: Partial<Record<keyof CerfaData, FieldSource>> = {};
@@ -111,6 +112,10 @@ export function DocumentUpload({ context = "association", onExtracted }: Props) 
     } finally {
       setLoading(false);
     }
+  };
+
+  const removeDoc = (idx: number) => {
+    onDocsChange(docs.filter((_, i) => i !== idx));
   };
 
   const onDrop = (e: React.DragEvent) => {
@@ -135,11 +140,14 @@ export function DocumentUpload({ context = "association", onExtracted }: Props) 
                   {doc.fieldsFound} champ{doc.fieldsFound > 1 ? "s" : ""} extrait{doc.fieldsFound > 1 ? "s" : ""}
                   {" "}
                   <span className="opacity-60">{DOC_TYPE_SECTIONS[doc.docType]}</span>
+                  {" · "}
+                  <span className="opacity-50">{new Date(doc.uploadedAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setDocs((prev) => prev.filter((_, idx) => idx !== i))}
+                onClick={() => removeDoc(i)}
+                title="Supprimer ce document"
                 className="text-[#6B7280] hover:text-[#EF4444] transition-colors"
               >
                 <X size={14} />
