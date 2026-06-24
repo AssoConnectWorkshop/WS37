@@ -87,7 +87,7 @@ export default function MonAssociation() {
         <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-4">
           2. Import du document de présentation
         </h2>
-        <DocumentUpload onExtracted={mergeData} />
+        <DocumentUpload context="association" onExtracted={mergeData} />
       </div>
 
       {/* Association sections */}

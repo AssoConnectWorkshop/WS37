@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileDown, Loader2, Info } from "lucide-react";
 import Link from "next/link";
 import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
+import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
 import type { CerfaData, FieldSource } from "@/components/cerfa/types";
 import { PROJECT_SECTIONS, SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 
@@ -46,6 +47,14 @@ export default function NouveauProjet() {
     const { suggestion } = await res.json();
     handleFieldChange(key, suggestion);
   }, [mergedData, handleFieldChange]);
+
+  const mergeProjectData = useCallback(
+    (newData: Partial<CerfaData>, newSources: Partial<Record<keyof CerfaData, FieldSource>>) => {
+      setProjectData((d) => ({ ...d, ...newData }));
+      setSources((s) => ({ ...s, ...newSources }));
+    },
+    []
+  );
 
   const generate = async () => {
     setSaving(true);
@@ -188,6 +197,15 @@ export default function NouveauProjet() {
           </div>
         </div>
       )}
+
+      {/* Project document upload */}
+      <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
+        <h2 className="text-[15px] font-semibold text-[#1A1A2E] mb-1">Import du document de présentation</h2>
+        <p className="text-[12px] text-[#6B7280] mb-4">
+          Notes de présentation, dossiers de demande, descriptifs d&apos;actions… → pré-remplit la section 6
+        </p>
+        <DocumentUpload context="projet" onExtracted={mergeProjectData} />
+      </div>
 
       {/* Progress */}
       <div className="bg-white border border-[#E5E9F2] rounded-xl p-6" style={{ boxShadow: "0 1px 4px rgba(49,107,242,0.08)" }}>
