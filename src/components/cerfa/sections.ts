@@ -1,5 +1,8 @@
 import type { CerfaData, SectionMeta } from "./types";
 
+// Sections that describe the association (reusable across projects)
+export const ASSOCIATION_SECTION_IDS = [1, 2, 3, 4, 5];
+
 export const SECTIONS: SectionMeta[] = [
   {
     id: 0,
@@ -120,6 +123,14 @@ export const SECTIONS: SectionMeta[] = [
     ],
   },
 ];
+
+export const ASSOCIATION_SECTIONS = SECTIONS.filter((s) =>
+  ASSOCIATION_SECTION_IDS.includes(s.id)
+);
+
+export const PROJECT_SECTIONS = SECTIONS.filter(
+  (s) => !ASSOCIATION_SECTION_IDS.includes(s.id)
+);
 
 export function computeCompletion(data: CerfaData): number {
   const allFields = SECTIONS.flatMap((s) => s.fields.map((f) => f.key));
