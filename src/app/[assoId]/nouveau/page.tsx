@@ -8,7 +8,7 @@ import { SectionAccordion } from "@/components/cerfa/SectionAccordion";
 import { DocumentUpload } from "@/components/cerfa/DocumentUpload";
 import { ProjectChat } from "@/components/cerfa/ProjectChat";
 import type { CerfaData, FieldSource } from "@/components/cerfa/types";
-import { PROJECT_SECTIONS, SECTIONS, computeCompletion } from "@/components/cerfa/sections";
+import { PROJECT_SECTIONS, SECTIONS, ASSOCIATION_SECTIONS, computeCompletion } from "@/components/cerfa/sections";
 
 export default function NouveauProjet() {
   const router = useRouter();
@@ -28,7 +28,15 @@ export default function NouveauProjet() {
   useEffect(() => {
     fetch(`/api/cerfa/associations/${assoId}`)
       .then((r) => r.json())
-      .then((d) => { if (d.data) setAssocData(d.data); })
+      .then((d) => {
+        if (d.data) {
+          const assocKeys = new Set(ASSOCIATION_SECTIONS.flatMap((s) => s.fields.map((f) => f.key as string)));
+          const filtered = Object.fromEntries(
+            Object.entries(d.data as Record<string, unknown>).filter(([k]) => assocKeys.has(k))
+          ) as CerfaData;
+          setAssocData(filtered);
+        }
+      })
       .finally(() => setLoadingAssoc(false));
   }, [assoId]);
 
