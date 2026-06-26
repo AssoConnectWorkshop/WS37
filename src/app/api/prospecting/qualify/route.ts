@@ -19,24 +19,19 @@ Décris la mission, la structure (réseau/fédération/association simple), la t
 Évalue la qualité du site web (formulaires d'adhésion ? espace membre ? don en ligne ?), la présence sur les réseaux sociaux, les offres d'emploi récentes (signal de croissance), et la maturité digitale globale.
 
 ### 👑 Organigramme — Méthode des Échecs
-Pour CHAQUE pièce, indique :
-- Le **nom complet** de la personne (ou "Non trouvé" si absent)
-- Son **titre exact**
-- Son **email** si trouvé dans les données publiques ou sur le site web (sinon indique où le chercher)
-- Son **téléphone** si trouvé (sinon indique où le chercher)
-- Son profil **LinkedIn** si trouvé ou un lien de recherche suggéré
-- Une note sur comment l'approcher
+Un bullet point par personne identifiée, sur cette ligne unique :
+\`[emoji pièce] **Prénom Nom** — Titre | email si trouvé | téléphone si trouvé | [LinkedIn](url ou lien de recherche) | 💬 angle d'approche en 1 phrase\`
 
-Structure :
-- 🤴 **Le Roi** (Président) — légitimité, rarement le décideur final
-- 👑 **La Reine** (DG / Délégué Général) — décideur réel, priorité absolue
-- 🐴 **Le Cavalier** (Dir. Partenariats / Relations membres) — champion potentiel
-- 🏰 **La Tour** (DSI / Responsable IT) — peut avoir un droit de veto
-- ♟️ **Les Pions** (assistants, chargés de mission) — sources d'information précieuses
+Pièces à identifier :
+- 🤴 Roi (Président)
+- 👑 Reine (DG / Délégué Général) — décideur réel, priorité absolue
+- 🐴 Cavalier (Dir. Partenariats / Relations membres / Communication)
+- 🏰 Tour (DSI / Responsable IT / Responsable Numérique)
+- ♟️ Pions (assistants, chargés de mission, secrétaire général — sources d'info)
 
-IMPORTANT : Utilise en priorité les données extraites du site web (emails, téléphones, noms trouvés) et de SIRENE pour les noms réels.
-Si un contact n'est pas trouvé, propose une URL de recherche LinkedIn du type :
-https://www.linkedin.com/search/results/people/?keywords=Prénom+Nom+NomAssociation
+Si une personne est introuvable, écris : \`[emoji] **Non identifié** — [Titre présumé] | [lien de recherche LinkedIn]\`
+Regroupe TOUS les membres dans cette seule section, sans sous-titres intermédiaires.
+Utilise en priorité les noms extraits du site web et de SIRENE.
 
 ### 🎯 Fit avec l'ICP AssoConnect
 Évalue sur ces critères avec un score :
@@ -47,8 +42,16 @@ https://www.linkedin.com/search/results/people/?keywords=Prénom+Nom+NomAssociat
 - Potentiel réseau (fédération, associations membres) : ✅/⚠️/❌
 - **Score ICP global : X/10**
 
-### 📰 Actualités & Signaux Récents
-Liste les événements récents (AG, projets, partenariats, levées de fonds), les signaux de croissance ou de changement, et les défis/problèmes connus.
+### 📰 Contexte Actuel & Signaux
+Couvre les points suivants si les données le permettent :
+
+**Assemblées Générales :** date de la dernière AG, décisions clés prises, changements de gouvernance ou de stratégie annoncés.
+
+**Enjeux & défis actuels :** problèmes identifiés (financement, digitalisation, recrutement, concurrence, réforme réglementaire), tensions internes si connues, besoins exprimés publiquement.
+
+**Presse & articles récents :** résume les principaux articles ou mentions presse (titre, source, date approximative, contenu clé). Cite entre guillemets les formulations marquantes si disponibles dans le contenu du site.
+
+**Signaux de croissance ou de changement :** nouveaux projets, partenariats, levées de fonds, recrutements, ouverture d'antennes, refonte du site, campagne de dons.
 
 ### ✅ Recommandation Finale
 **Décision :** 🟢 À contacter immédiatement / 🟡 À investiguer davantage / 🔴 Hors ICP
