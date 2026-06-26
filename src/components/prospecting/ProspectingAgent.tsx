@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Search, Loader2, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import SimilarAssociations from "./SimilarAssociations";
 
 function renderMarkdown(text: string): string {
   return text
@@ -287,37 +288,48 @@ export default function ProspectingAgent() {
 
             {/* Actions when done */}
             {status === "done" && (
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    const blob = new Blob([result], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = `qualif-${currentName.replace(/\s+/g, "-").toLowerCase()}.md`;
-                    a.click();
-                    URL.revokeObjectURL(url);
+              <>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([result], { type: "text/plain" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `qualif-${currentName.replace(/\s+/g, "-").toLowerCase()}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 border border-[#E5E9F2] rounded-xl text-[13px] text-[#6B7280] hover:border-[#316BF2]/40 hover:text-[#316BF2] transition-colors bg-white"
+                  >
+                    Exporter (.md)
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(result);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 border border-[#E5E9F2] rounded-xl text-[13px] text-[#6B7280] hover:border-[#316BF2]/40 hover:text-[#316BF2] transition-colors bg-white"
+                  >
+                    Copier le texte
+                  </button>
+                  <button
+                    onClick={reset}
+                    className="flex items-center gap-2 px-4 py-2 bg-[#316BF2] text-white rounded-xl text-[13px] font-medium hover:bg-[#1E54D4] transition-colors ml-auto"
+                  >
+                    <RotateCcw size={13} />
+                    Nouveau compte
+                  </button>
+                </div>
+
+                <SimilarAssociations
+                  analyzedName={currentName}
+                  onQualify={(name) => {
+                    setQuery(name);
+                    qualify(name);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
-                  className="flex items-center gap-2 px-4 py-2 border border-[#E5E9F2] rounded-xl text-[13px] text-[#6B7280] hover:border-[#316BF2]/40 hover:text-[#316BF2] transition-colors bg-white"
-                >
-                  Exporter (.md)
-                </button>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(result);
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 border border-[#E5E9F2] rounded-xl text-[13px] text-[#6B7280] hover:border-[#316BF2]/40 hover:text-[#316BF2] transition-colors bg-white"
-                >
-                  Copier le texte
-                </button>
-                <button
-                  onClick={reset}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#316BF2] text-white rounded-xl text-[13px] font-medium hover:bg-[#1E54D4] transition-colors ml-auto"
-                >
-                  <RotateCcw size={13} />
-                  Nouveau compte
-                </button>
-              </div>
+                />
+              </>
             )}
 
           </div>
