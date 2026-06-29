@@ -13,7 +13,14 @@ Pour chaque association donnée, produis une fiche de préqualification COMPLÈT
 ## Format attendu (respecte exactement cette structure) :
 
 ### 🏛️ Mission & Organisation
-Décris la mission, la structure (réseau/fédération/association simple), la taille estimée (membres, salariés, bénévoles), et le budget annuel estimé si disponible.
+- **Mission :** phrase précise décrivant l'objet social (source entre parenthèses)
+- **Structure :** réseau national / fédération / association locale / multi-antennes
+- **Membres/adhérents :** nombre exact ou fourchette (source)
+- **Sections/antennes :** nombre et répartition géographique (source)
+- **Salariés :** nombre ou tranche (source : SIRENE, RNA ou site web)
+- **Bénévoles :** nombre si trouvé (source)
+- **Budget annuel :** montant ou estimation (source)
+- **Ancienneté :** année de création
 
 ### 🌐 Présence Digitale
 Évalue la qualité du site web (formulaires d'adhésion ? espace membre ? don en ligne ?), la présence sur les réseaux sociaux, les offres d'emploi récentes (signal de croissance), et la maturité digitale globale.
@@ -248,7 +255,7 @@ async function scrapeFromHtml(base: string, homepageHtml: string): Promise<Scrap
     allUrls.map((url) => fetchRaw(url, 4000).then((html) => ({ url, html })))
   );
 
-  const homepageText = stripHtml(homepageHtml).slice(0, 4000);
+  const homepageText = stripHtml(homepageHtml).slice(0, 6000);
   const pages: { url: string; label: string; text: string }[] = [
     { url: base, label: "PAGE D'ACCUEIL", text: homepageText },
   ];
@@ -259,13 +266,13 @@ async function scrapeFromHtml(base: string, homepageHtml: string): Promise<Scrap
     allPhones.push(...extractPhones(html));
     allLinkedins.push(...extractLinkedins(html));
     const path = url.replace(base, "") || "/";
-    const text = stripHtml(html).slice(0, 3000);
+    const text = stripHtml(html).slice(0, 5000);
     const label = classifyPage(path, text);
     pages.push({ url: path, label, text });
   }
 
   return {
-    pages: pages.slice(0, 20),
+    pages: pages.slice(0, 25),
     emails: [...new Set(allEmails)].slice(0, 30),
     phones: [...new Set(allPhones)].slice(0, 15),
     linkedins: [...new Set(allLinkedins)].slice(0, 15),
@@ -361,6 +368,13 @@ async function searchWebForUrl(name: string): Promise<string | null> {
 
 // ─── Public API helpers ──────────────────────────────────────────────────────
 
+const SIRENE_EFFECTIF: Record<string, string> = {
+  "00": "0 salarié", "01": "1-2", "02": "3-5", "03": "6-9",
+  "11": "10-19", "12": "20-49", "21": "50-99", "22": "100-199",
+  "31": "200-249", "32": "250-499", "41": "500-999", "42": "1 000-1 999",
+  "51": "2 000-4 999", "52": "5 000-9 999", "53": "10 000+",
+};
+
 async function searchSirene(name: string) {
   try {
     const res = await fetch(
@@ -387,6 +401,19 @@ async function searchRNA(name: string) {
   }
 }
 
+async function fetchRnaDetail(rnaId: string) {
+  try {
+    const res = await fetch(
+      `https://entreprise.data.gouv.fr/api/rna/v1/id/${encodeURIComponent(rnaId)}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 type Dirigeant = { prenom?: string; nom?: string; qualite?: string };
 
 // ─── Main handler ────────────────────────────────────────────────────────────
@@ -397,7 +424,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Nom d'association requis" }, { status: 400 });
   }
 
-  // All sources run in parallel — APIs, URL pattern guessing, and web search
+  // All sources run in parallel from the start
   const [sireneData, rnaData, guessedUrl, searchedUrl] = await Promise.all([
     searchSirene(name.trim()),
     searchRNA(name.trim()),
@@ -407,11 +434,13 @@ export async function POST(req: Request) {
 
   const publicContext: string[] = [];
   let siteUrl = "";
+  let rnaId: string | null = null;
 
   if (sireneData?.results?.length) {
     const top = sireneData.results[0];
     const asso = top.association ?? {};
     siteUrl = asso.site_web ?? "";
+    if (asso.id_association) rnaId = asso.id_association;
 
     const dirigeants = (top.dirigeants ?? []) as Dirigeant[];
     const dirigeantsText = dirigeants.length
@@ -420,47 +449,63 @@ export async function POST(req: Request) {
           .join("\n")
       : "  - Aucun dirigeant trouvé dans le registre INPI";
 
+    const effectifCode = top.tranche_effectif_salarie ?? top.siege?.tranche_effectif_salarie;
+    const effectif = effectifCode ? SIRENE_EFFECTIF[effectifCode] ?? effectifCode : "non renseigné";
+
     publicContext.push(`**SIRENE** — ${top.nom_complet} (SIREN: ${top.siren})
 - Forme juridique : ${top.nature_juridique ?? "N/A"}
-- Siège : ${top.siege?.libelle_commune ?? "N/A"} (${top.siege?.code_postal ?? ""})
+- Siège : ${top.siege?.libelle_commune ?? "N/A"} (${top.siege?.code_postal ?? ""}) — département ${top.siege?.departement ?? "N/A"}
 - Objet social : ${asso.objet ?? "N/A"}
 - Date création : ${asso.date_creation ?? top.date_creation ?? "N/A"}
+- Effectif salarié (tranche SIRENE) : ${effectif} salariés
 - Site web (SIRENE) : ${siteUrl || "non renseigné"}
 - Email association : ${asso.email ?? "N/A"}
 - Téléphone association : ${asso.telephone ?? "N/A"}
+- Agrément : ${asso.agrement?.[0]?.type ?? "aucun"}
 - Dirigeants déclarés (INPI) :
 ${dirigeantsText}`);
   }
 
-  if (rnaData?.association) {
-    const a = rnaData.association;
-    if (!siteUrl && a.site_web) siteUrl = a.site_web;
-    publicContext.push(`**RNA** — ${a.id_association ?? "N/A"}
-- Objet : ${a.objet ?? "N/A"}
-- Adresse : ${a.adresse_siege?.voie ?? ""} ${a.adresse_siege?.code_postal ?? ""} ${a.adresse_siege?.commune ?? ""}
-- Agrément : ${JSON.stringify(a.agrement ?? "aucun")}`);
-  } else if (rnaData?.associations?.length) {
-    const top = rnaData.associations[0];
-    if (!siteUrl && top.site_web) siteUrl = top.site_web;
-    publicContext.push(`**RNA** — ${top.id_association ?? "N/A"}
-- Titre : ${top.titre ?? "N/A"}
-- Objet : ${top.objet ?? "N/A"}`);
+  // Fetch RNA detail in parallel with first result extraction
+  const rnaTopId =
+    rnaId ??
+    rnaData?.association?.id_association ??
+    rnaData?.associations?.[0]?.id_association ??
+    null;
+
+  const rnaDetail = rnaTopId ? await fetchRnaDetail(rnaTopId) : null;
+  const rnaRecord = rnaDetail?.association ?? rnaData?.association ?? rnaData?.associations?.[0] ?? null;
+
+  if (rnaRecord) {
+    if (!siteUrl && rnaRecord.site_web) siteUrl = rnaRecord.site_web;
+    publicContext.push(`**RNA** — ${rnaRecord.id_association ?? "N/A"}
+- Titre officiel : ${rnaRecord.titre ?? "N/A"}
+- Objet complet : ${rnaRecord.objet ?? "N/A"}
+- Adresse siège : ${rnaRecord.adresse_siege?.voie ?? ""} ${rnaRecord.adresse_siege?.code_postal ?? ""} ${rnaRecord.adresse_siege?.commune ?? ""}
+- Site web (RNA) : ${rnaRecord.site_web ?? "N/A"}
+- Email RNA : ${rnaRecord.email ?? "N/A"}
+- Téléphone RNA : ${rnaRecord.telephone ?? "N/A"}
+- Agrément : ${JSON.stringify(rnaRecord.agrement ?? "aucun")}
+- Nb adhérents déclarés : ${rnaRecord.nb_adherents ?? rnaRecord.nombre_adherents ?? "N/A"}
+- Nb bénévoles déclarés : ${rnaRecord.nb_benevoles ?? rnaRecord.nombre_benevoles ?? "N/A"}
+- Nb salariés déclarés : ${rnaRecord.nb_salaries ?? rnaRecord.nombre_salaries ?? "N/A"}
+- Date dernière déclaration : ${rnaRecord.date_mise_a_jour ?? rnaRecord.date_derniere_mise_a_jour ?? "N/A"}`);
   }
 
   // Priority: SIRENE/RNA (official) > pattern guess > web search
   if (!siteUrl && guessedUrl) siteUrl = guessedUrl;
   if (!siteUrl && searchedUrl) siteUrl = searchedUrl;
 
-  // Scrape website
+  // Scrape website — generous limits for thorough analysis
   const scrape = siteUrl ? await scrapeWebsite(siteUrl) : null;
 
-  // Build website section for the prompt
-  let websiteSection = "## Site web\nNon trouvé dans les données publiques.";
+  // Build website section
+  let websiteSection = "## Site web\nNon trouvé — utilise tes connaissances générales sur cette association.";
   if (scrape) {
     const contactsFound = [
-      scrape.emails.length ? `Emails trouvés : ${scrape.emails.join(", ")}` : null,
-      scrape.phones.length ? `Téléphones trouvés : ${scrape.phones.join(", ")}` : null,
-      scrape.linkedins.length ? `Profils LinkedIn trouvés : ${scrape.linkedins.join(", ")}` : null,
+      scrape.emails.length ? `Emails : ${scrape.emails.join(", ")}` : null,
+      scrape.phones.length ? `Téléphones : ${scrape.phones.join(", ")}` : null,
+      scrape.linkedins.length ? `LinkedIn : ${scrape.linkedins.join(", ")}` : null,
     ]
       .filter(Boolean)
       .join("\n");
@@ -470,30 +515,45 @@ ${dirigeantsText}`);
       .join("\n\n---\n\n");
 
     websiteSection = `## Site web — ${scrape.resolvedUrl}
-(${scrape.pages.length} pages explorées : ${scrape.pages.map((p) => p.label).join(", ")})
+Pages explorées (${scrape.pages.length}) : ${scrape.pages.map((p) => p.label).join(" | ")}
 
-### Contacts extraits automatiquement du HTML :
-${contactsFound || "Aucun contact extrait directement"}
+### Contacts extraits du HTML :
+${contactsFound || "Aucun contact extrait"}
 
-### Contenu des pages :
-${pagesText.slice(0, 20000)}`;
+### Contenu intégral des pages :
+${pagesText.slice(0, 28000)}`;
   } else if (siteUrl) {
-    websiteSection = `## Site web\nURL détectée : ${siteUrl} (contenu non accessible)`;
+    websiteSection = `## Site web\nURL : ${siteUrl} (non accessible au scraping)`;
   }
 
   const userMessage = `Préqualifie l'association : **"${name}"**
 
-${publicContext.length > 0 ? `## Données publiques (SIRENE / RNA)\n${publicContext.join("\n\n")}` : "Aucune donnée publique trouvée via les APIs gouvernementales. Utilise tes connaissances générales."}
+${publicContext.length > 0 ? `## Données officielles (SIRENE / RNA)\n${publicContext.join("\n\n")}` : "Aucune donnée publique trouvée. Utilise tes connaissances générales."}
 
 ${websiteSection}
 
-Produis maintenant la fiche de préqualification complète.
-Pour l'organigramme, utilise EN PRIORITÉ les noms et coordonnées extraits du site web et de SIRENE.
-Les emails et téléphones listés dans "Contacts extraits automatiquement" sont réels — attribue-les aux bonnes personnes selon le contexte.`;
+---
+## Instructions de rédaction
+
+Produis la fiche de préqualification complète.
+
+**Pour chaque donnée chiffrée, cite ta source entre parenthèses** : (SIRENE), (RNA), (site web /page), (estimation).
+Si une donnée est introuvable, écris "Non trouvé" — ne l'invente pas.
+
+**Points à creuser en priorité dans le contenu du site web :**
+- Nombre exact de membres/adhérents (cherche dans /adhesion, /chiffres-cles, page d'accueil, rapports)
+- Nombre de sections/antennes/clubs (cherche dans /sections, /antennes, /carte, menus de navigation)
+- Nombre de salariés / bénévoles (cherche dans pages RH, rapports d'activité, pages "qui sommes-nous")
+- Mission précise et valeurs (cherche dans /presentation, /mission, /qui-sommes-nous)
+- Actualités récentes datées (titres et dates des derniers articles/communiqués)
+- Coordonnées directes : email général, téléphone, adresse complète
+
+**Pour l'organigramme :**
+Les emails et téléphones extraits du HTML sont réels — attribue-les aux bonnes personnes selon le contexte (nom sur la même page, signature, page contact).`;
 
   const stream = anthropic.messages.stream({
     model: "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 6000,
     system: SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
   });
