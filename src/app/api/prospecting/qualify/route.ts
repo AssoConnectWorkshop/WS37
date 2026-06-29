@@ -280,24 +280,58 @@ async function scrapeFromHtml(base: string, homepageHtml: string): Promise<Scrap
   };
 }
 
-async function guessWebsiteUrl(name: string): Promise<string | null> {
-  const slug = name
+function toSlug(s: string): string {
+  return s
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 40);
+    .replace(/^-|-$/g, "");
+}
 
-  const candidates = [
-    `https://www.${slug}.fr`,
-    `https://www.${slug}.org`,
-    `https://${slug}.fr`,
-    `https://www.${slug}.asso.fr`,
-    `https://${slug}.asso.fr`,
-    `https://www.${slug}.com`,
-    `https://${slug}.org`,
-  ];
+// Generate multiple slug candidates from a long name by taking meaningful word subsets.
+// e.g. "Assoc Nationale des Hospitaliers Retraites" → ["hospitaliers-retraites", "assoc-nationale-des-hospitaliers-retraites", ...]
+function slugVariants(name: string): string[] {
+  const stopwords = new Set([
+    "association", "assoc", "nationale", "national", "france", "français", "francais",
+    "des", "de", "du", "les", "la", "le", "un", "une", "et", "ou", "en", "au", "aux",
+    "pour", "par", "sur", "dans", "avec", "qui", "que", "tout", "toute", "tous",
+    "federation", "federation", "fédération", "union", "syndicat", "comite", "comité",
+    "ligue", "groupement", "collectif", "mouvement", "reseau", "réseau",
+  ]);
+  const full = toSlug(name).slice(0, 60);
+  const words = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !stopwords.has(w));
+
+  const variants: string[] = [full];
+  if (words.length >= 2) variants.push(words.join("-").slice(0, 60));
+  if (words.length >= 2) variants.push(words.slice(-2).join("-"));
+  if (words.length >= 3) variants.push(words.slice(-3).join("-"));
+  if (words.length >= 2) variants.push(words.slice(0, 2).join("-"));
+
+  return [...new Set(variants)].filter(Boolean).slice(0, 5);
+}
+
+async function guessWebsiteUrl(name: string): Promise<string | null> {
+  const slugs = slugVariants(name);
+  const candidates: string[] = [];
+  for (const slug of slugs) {
+    candidates.push(
+      `https://www.${slug}.fr`,
+      `https://${slug}.fr`,
+      `https://www.${slug}.org`,
+      `https://www.${slug}.asso.fr`,
+      `https://${slug}.asso.fr`,
+      `https://${slug}.org`,
+      `https://www.${slug}.com`,
+    );
+  }
 
   // Try all candidates in parallel — return first that responds
   const results = await Promise.allSettled(
@@ -495,6 +529,26 @@ ${dirigeantsText}`);
   // Priority: SIRENE/RNA (official) > pattern guess > web search
   if (!siteUrl && guessedUrl) siteUrl = guessedUrl;
   if (!siteUrl && searchedUrl) siteUrl = searchedUrl;
+
+  // Phase 2: if still no URL, retry using the full SIRENE/RNA name (not just user acronym)
+  if (!siteUrl) {
+    const fullSireneName: string = sireneData?.results?.[0]?.nom_complet ?? "";
+    const fullRnaName: string = rnaRecord?.titre ?? "";
+    const fullName = fullSireneName || fullRnaName;
+    if (fullName && fullName.toLowerCase() !== name.trim().toLowerCase()) {
+      const objetWords = (sireneData?.results?.[0]?.association?.objet ?? rnaRecord?.objet ?? "")
+        .split(/\s+/)
+        .filter((w: string) => w.length > 5)
+        .slice(0, 3)
+        .join(" ");
+      const [g2, s2, s3] = await Promise.all([
+        guessWebsiteUrl(fullName),
+        searchWebForUrl(fullName),
+        objetWords ? searchWebForUrl(`${fullName} ${objetWords}`) : Promise.resolve(null),
+      ]);
+      siteUrl = g2 ?? s2 ?? s3 ?? "";
+    }
+  }
 
   // Scrape website — generous limits for thorough analysis
   const scrape = siteUrl ? await scrapeWebsite(siteUrl) : null;
