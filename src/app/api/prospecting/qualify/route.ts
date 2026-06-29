@@ -158,21 +158,49 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-async function fetchRaw(url: string, timeoutMs = 5000): Promise<string | null> {
-  try {
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Accept-Encoding": "gzip, deflate, br",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
+
+async function fetchRaw(url: string, timeoutMs = 8000): Promise<string | null> {
+  const tryFetch = async (headers: Record<string, string>) => {
     const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-      },
+      headers,
       signal: AbortSignal.timeout(timeoutMs),
       redirect: "follow",
     });
-    if (!res.ok) return null;
+    // Accept any response that has HTML content, even 403 (bot challenges often return HTML)
     const ct = res.headers.get("content-type") ?? "";
-    if (!ct.includes("html")) return null;
-    return res.text();
+    if (!ct.includes("html") && !ct.includes("text")) return null;
+    const text = await res.text();
+    // Reject Cloudflare / bot challenge pages (no real content)
+    if (text.length < 500) return null;
+    if (/Just a moment|Enable JavaScript|cf-browser-verification|__cf_chl/i.test(text)) return null;
+    return text;
+  };
+
+  try {
+    // First attempt: full browser headers
+    const result = await tryFetch(BROWSER_HEADERS);
+    if (result) return result;
+
+    // Second attempt: minimal headers (some servers reject sec-fetch-* headers)
+    return await tryFetch({
+      "User-Agent": BROWSER_HEADERS["User-Agent"],
+      Accept: "text/html,application/xhtml+xml,*/*;q=0.9",
+      "Accept-Language": "fr-FR,fr;q=0.9",
+    });
   } catch {
     return null;
   }
@@ -355,7 +383,7 @@ async function guessWebsiteUrl(name: string): Promise<string | null> {
         method: "HEAD",
         signal: AbortSignal.timeout(3000),
         redirect: "follow",
-        headers: { "User-Agent": "Mozilla/5.0" },
+        headers: { "User-Agent": BROWSER_HEADERS["User-Agent"] },
       }).then((res) => (res.ok || res.status === 403 || res.status === 405 ? url : null))
     )
   );
