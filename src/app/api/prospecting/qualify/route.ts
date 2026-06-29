@@ -100,10 +100,31 @@ function extractLinkedins(html: string): string[] {
   return [...new Set(matches.map((l) => "https://" + l))].slice(0, 10);
 }
 
+// Category labels for scraped pages — helps Claude interpret the content
+const PAGE_CATEGORIES: { pattern: RegExp; label: string }[] = [
+  { pattern: /bureau|conseil.admin|gouvernance|ca\b|board/i, label: "BUREAU / CONSEIL D'ADMINISTRATION" },
+  { pattern: /equipe|team|direction|dirigeant|responsable|staff/i, label: "ÉQUIPE & DIRECTION" },
+  { pattern: /contact|nous.contacter|contactez/i, label: "CONTACT" },
+  { pattern: /section|antenne|club|delegation|region|territoire/i, label: "SECTIONS & ANTENNES" },
+  { pattern: /adhes|membre|devenir.membre|rejoindre|inscription/i, label: "ADHÉSION & MEMBRES" },
+  { pattern: /actualit|news|article|blog|communiqu|presse/i, label: "ACTUALITÉS & PRESSE" },
+  { pattern: /agenda|evenement|calendrier|programme/i, label: "AGENDA & ÉVÉNEMENTS" },
+  { pattern: /rapport|bilan|publication|document|chiffre/i, label: "RAPPORTS & PUBLICATIONS" },
+  { pattern: /recrutement|emploi|offre|poste|carrieres/i, label: "RECRUTEMENT" },
+  { pattern: /qui.sommes|presentation|histoire|mission|objet|a.propos|about/i, label: "PRÉSENTATION" },
+];
+
+function classifyPage(path: string, text: string): string {
+  for (const { pattern, label } of PAGE_CATEGORIES) {
+    if (pattern.test(path) || pattern.test(text.slice(0, 500))) return label;
+  }
+  return "PAGE DU SITE";
+}
+
 function extractInternalLinks(html: string, base: string): string[] {
   const hrefs = [...html.matchAll(/href=["']([^"'#?]+)["']/gi)].map((m) => m[1]);
   const keywords =
-    /equipe|team|bureau|conseil|gouvernance|direction|contact|a-propos|about|membres|adherents|actualit|news|presse|agenda|evenement|recrutement|emploi|offre/i;
+    /equipe|team|bureau|conseil|gouvernance|direction|contact|a-propos|about|membres|adherents|adhesion|section|antenne|club|actualit|news|agenda|evenement|recrutement|emploi|rapport|bilan|publication|presse|presentation|histoire|mission/i;
 
   return hrefs
     .filter((h) => keywords.test(h))
@@ -113,7 +134,7 @@ function extractInternalLinks(html: string, base: string): string[] {
       return base + "/" + h;
     })
     .filter((h) => h.startsWith(base))
-    .slice(0, 12);
+    .slice(0, 20);
 }
 
 function stripHtml(html: string): string {
@@ -151,7 +172,7 @@ async function fetchRaw(url: string, timeoutMs = 5000): Promise<string | null> {
 }
 
 interface ScrapeResult {
-  pages: { url: string; text: string }[];
+  pages: { url: string; label: string; text: string }[];
   emails: string[];
   phones: string[];
   linkedins: string[];
@@ -187,36 +208,64 @@ async function scrapeFromHtml(base: string, homepageHtml: string): Promise<Scrap
 
   const internalLinks = extractInternalLinks(homepageHtml, base);
 
-  // Also try fixed paths that might not be linked
+  // Fixed paths grouped by priority — covers the most common French asso URL patterns
   const fixedPaths = [
-    "/equipe", "/team", "/bureau", "/gouvernance", "/conseil-administration",
-    "/direction", "/contact", "/nous-contacter", "/a-propos", "/qui-sommes-nous",
-    "/about", "/actualites", "/news", "/agenda", "/evenements", "/recrutement",
+    // Bureau / gouvernance
+    "/bureau", "/conseil-administration", "/conseil-d-administration",
+    "/gouvernance", "/ca", "/board", "/instances",
+    // Équipe / direction
+    "/equipe", "/team", "/direction", "/dirigeants", "/responsables",
+    "/nos-elus", "/elus",
+    // Contact
+    "/contact", "/nous-contacter", "/contactez-nous", "/coordonnees",
+    // Présentation
+    "/qui-sommes-nous", "/a-propos", "/presentation", "/histoire",
+    "/notre-association", "/about",
+    // Sections / antennes
+    "/nos-sections", "/sections", "/clubs", "/antennes",
+    "/delegations", "/regions", "/territoires",
+    // Adhésion / membres
+    "/adhesion", "/adherer", "/devenir-membre", "/nos-membres",
+    "/membres", "/rejoindre", "/inscription",
+    // Actualités / presse
+    "/actualites", "/actualite", "/news", "/presse",
+    "/communiques-de-presse", "/articles", "/blog",
+    // Agenda / événements
+    "/agenda", "/evenements", "/calendrier", "/programme",
+    // Rapports & chiffres
+    "/rapport-annuel", "/bilan", "/publications", "/documents",
+    "/chiffres-cles",
+    // Recrutement
+    "/recrutement", "/emploi", "/offres-emploi",
   ];
-  const allPaths = [
+
+  const allUrls = [
     ...new Set([...internalLinks, ...fixedPaths.map((p) => base + p)]),
-  ].slice(0, 16);
+  ].slice(0, 30);
 
   // Fetch all secondary pages in parallel
   const secondaryHtmls = await Promise.all(
-    allPaths.map((url) => fetchRaw(url, 4000).then((html) => ({ url, html })))
+    allUrls.map((url) => fetchRaw(url, 4000).then((html) => ({ url, html })))
   );
 
-  const pages: { url: string; text: string }[] = [
-    { url: base, text: stripHtml(homepageHtml).slice(0, 4000) },
+  const homepageText = stripHtml(homepageHtml).slice(0, 4000);
+  const pages: { url: string; label: string; text: string }[] = [
+    { url: base, label: "PAGE D'ACCUEIL", text: homepageText },
   ];
 
   for (const { url, html } of secondaryHtmls) {
-    if (!html || html.length < 200) continue;
+    if (!html || html.length < 300) continue;
     allEmails.push(...extractEmails(html));
     allPhones.push(...extractPhones(html));
     allLinkedins.push(...extractLinkedins(html));
     const path = url.replace(base, "") || "/";
-    pages.push({ url: path, text: stripHtml(html).slice(0, 3000) });
+    const text = stripHtml(html).slice(0, 3000);
+    const label = classifyPage(path, text);
+    pages.push({ url: path, label, text });
   }
 
   return {
-    pages: pages.slice(0, 10),
+    pages: pages.slice(0, 20),
     emails: [...new Set(allEmails)].slice(0, 30),
     phones: [...new Set(allPhones)].slice(0, 15),
     linkedins: [...new Set(allLinkedins)].slice(0, 15),
@@ -296,10 +345,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "Nom d'association requis" }, { status: 400 });
   }
 
-  // Fetch public data + guess website in parallel
-  const [sireneData, rnaData] = await Promise.all([
+  // Fetch public data + guess website URL all in parallel from the start
+  const [sireneData, rnaData, guessedUrl] = await Promise.all([
     searchSirene(name.trim()),
     searchRNA(name.trim()),
+    guessWebsiteUrl(name.trim()),
   ]);
 
   const publicContext: string[] = [];
@@ -344,11 +394,8 @@ ${dirigeantsText}`);
 - Objet : ${top.objet ?? "N/A"}`);
   }
 
-  // If no website found in public APIs, try to guess it
-  if (!siteUrl) {
-    const guessed = await guessWebsiteUrl(name.trim());
-    if (guessed) siteUrl = guessed;
-  }
+  // Use guessed URL as fallback if public APIs didn't provide one
+  if (!siteUrl && guessedUrl) siteUrl = guessedUrl;
 
   // Scrape website
   const scrape = siteUrl ? await scrapeWebsite(siteUrl) : null;
@@ -365,16 +412,17 @@ ${dirigeantsText}`);
       .join("\n");
 
     const pagesText = scrape.pages
-      .map((p) => `[${p.url}]\n${p.text}`)
+      .map((p) => `### [${p.label}] ${p.url}\n${p.text}`)
       .join("\n\n---\n\n");
 
     websiteSection = `## Site web — ${scrape.resolvedUrl}
+(${scrape.pages.length} pages explorées : ${scrape.pages.map((p) => p.label).join(", ")})
 
-### Contacts extraits automatiquement :
+### Contacts extraits automatiquement du HTML :
 ${contactsFound || "Aucun contact extrait directement"}
 
-### Contenu des pages (${scrape.pages.length} pages explorées) :
-${pagesText.slice(0, 18000)}`;
+### Contenu des pages :
+${pagesText.slice(0, 20000)}`;
   } else if (siteUrl) {
     websiteSection = `## Site web\nURL détectée : ${siteUrl} (contenu non accessible)`;
   }
