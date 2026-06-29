@@ -274,7 +274,6 @@ async function scrapeFromHtml(base: string, homepageHtml: string): Promise<Scrap
 }
 
 async function guessWebsiteUrl(name: string): Promise<string | null> {
-  // Try common URL patterns for French associations
   const slug = name
     .toLowerCase()
     .normalize("NFD")
@@ -289,22 +288,75 @@ async function guessWebsiteUrl(name: string): Promise<string | null> {
     `https://${slug}.fr`,
     `https://www.${slug}.asso.fr`,
     `https://${slug}.asso.fr`,
+    `https://www.${slug}.com`,
+    `https://${slug}.org`,
   ];
 
-  for (const url of candidates) {
-    try {
-      const res = await fetch(url, {
+  // Try all candidates in parallel — return first that responds
+  const results = await Promise.allSettled(
+    candidates.map((url) =>
+      fetch(url, {
         method: "HEAD",
         signal: AbortSignal.timeout(3000),
         redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0" },
-      });
-      if (res.ok) return url;
-    } catch {
-      // try next
-    }
+      }).then((res) => (res.ok ? url : null))
+    )
+  );
+
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) return r.value;
   }
   return null;
+}
+
+async function searchWebForUrl(name: string): Promise<string | null> {
+  // DuckDuckGo HTML — no API key needed, returns real search results
+  const BLOCKED_HOSTS = [
+    "duckduckgo.com", "google.com", "bing.com", "yahoo.com",
+    "wikipedia.org", "linkedin.com", "facebook.com", "twitter.com",
+    "youtube.com", "instagram.com", "societe.com", "pappers.fr",
+    "data.gouv.fr", "legifrance.gouv.fr",
+  ];
+
+  try {
+    const q = encodeURIComponent(`"${name}" association site officiel`);
+    const res = await fetch(`https://html.duckduckgo.com/html/?q=${q}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "fr-FR,fr;q=0.9",
+      },
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!res.ok) return null;
+
+    const html = await res.text();
+
+    // DuckDuckGo encodes result URLs in uddg= query param
+    const matches = [...html.matchAll(/uddg=(https?%3A%2F%2F[^&"'\s]+)/g)];
+    const urls = matches
+      .map((m) => {
+        try { return decodeURIComponent(m[1]); } catch { return null; }
+      })
+      .filter((u): u is string =>
+        u !== null &&
+        !BLOCKED_HOSTS.some((h) => u.includes(h))
+      );
+
+    if (urls[0]) return urls[0];
+
+    // Fallback: look for plain href links in the results
+    const hrefMatches = [...html.matchAll(/href="(https?:\/\/(?!(?:duckduckgo)[^"]+)[^"]+)"/g)];
+    const hrefUrls = hrefMatches
+      .map((m) => m[1])
+      .filter((u) => !BLOCKED_HOSTS.some((h) => u.includes(h)));
+
+    return hrefUrls[0] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ─── Public API helpers ──────────────────────────────────────────────────────
@@ -345,11 +397,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "Nom d'association requis" }, { status: 400 });
   }
 
-  // Fetch public data + guess website URL all in parallel from the start
-  const [sireneData, rnaData, guessedUrl] = await Promise.all([
+  // All sources run in parallel — APIs, URL pattern guessing, and web search
+  const [sireneData, rnaData, guessedUrl, searchedUrl] = await Promise.all([
     searchSirene(name.trim()),
     searchRNA(name.trim()),
     guessWebsiteUrl(name.trim()),
+    searchWebForUrl(name.trim()),
   ]);
 
   const publicContext: string[] = [];
@@ -394,8 +447,9 @@ ${dirigeantsText}`);
 - Objet : ${top.objet ?? "N/A"}`);
   }
 
-  // Use guessed URL as fallback if public APIs didn't provide one
+  // Priority: SIRENE/RNA (official) > pattern guess > web search
   if (!siteUrl && guessedUrl) siteUrl = guessedUrl;
+  if (!siteUrl && searchedUrl) siteUrl = searchedUrl;
 
   // Scrape website
   const scrape = siteUrl ? await scrapeWebsite(siteUrl) : null;
