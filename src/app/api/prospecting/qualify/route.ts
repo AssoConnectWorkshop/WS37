@@ -311,11 +311,26 @@ function slugVariants(name: string): string[] {
 
   const variants: string[] = [full];
   if (words.length >= 2) variants.push(words.join("-").slice(0, 60));
-  if (words.length >= 2) variants.push(words.slice(-2).join("-"));
-  if (words.length >= 3) variants.push(words.slice(-3).join("-"));
-  if (words.length >= 2) variants.push(words.slice(0, 2).join("-"));
+  // Last 2 words + reversed
+  if (words.length >= 2) {
+    const w2 = words.slice(-2);
+    variants.push(w2.join("-"));
+    variants.push([...w2].reverse().join("-"));
+  }
+  // Last 3 words + reversed
+  if (words.length >= 3) {
+    const w3 = words.slice(-3);
+    variants.push(w3.join("-"));
+    variants.push([...w3].reverse().join("-"));
+  }
+  // First 2 words + reversed
+  if (words.length >= 2) {
+    const w2f = words.slice(0, 2);
+    variants.push(w2f.join("-"));
+    variants.push([...w2f].reverse().join("-"));
+  }
 
-  return [...new Set(variants)].filter(Boolean).slice(0, 5);
+  return [...new Set(variants)].filter(Boolean).slice(0, 10);
 }
 
 async function guessWebsiteUrl(name: string): Promise<string | null> {
@@ -341,7 +356,7 @@ async function guessWebsiteUrl(name: string): Promise<string | null> {
         signal: AbortSignal.timeout(3000),
         redirect: "follow",
         headers: { "User-Agent": "Mozilla/5.0" },
-      }).then((res) => (res.ok ? url : null))
+      }).then((res) => (res.ok || res.status === 403 || res.status === 405 ? url : null))
     )
   );
 
